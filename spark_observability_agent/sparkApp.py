@@ -43,6 +43,7 @@ spark = (SparkSession
   .builder
   .appName("Test sparkmeasure instrumentation of Python/PySpark code")
   .config("spark.jars.packages","ch.cern.sparkmeasure:spark-measure_2.12:0.27")
+  .config("spark.kerberos.access.hadoopFileSystems","s3a://go01-demo/")
   .getOrCreate() )
 
 from sparkmeasure import TaskMetrics
@@ -54,6 +55,17 @@ taskmetrics.end()
 taskmetrics.print_report()
 
 spark.sql("select * from PerfTaskMetrics").show()
+
+
+from sparkmeasure import StageMetrics
+stagemetrics = StageMetrics(spark)
+stagemetrics.runandmeasure(globals(), "select count(*) from range(1000) cross join range(1000) cross join range(100)")
+
+df = stagemetrics.create_stagemetrics_DF("PerfStageMetrics")
+df.show()
+#stagemetrics.save_data(df.orderBy("jobId", "stageId"), "stagemetrics_test1", "json")
+
+
 
 taskMetricsDf = spark.table("PerfTaskMetrics")
 

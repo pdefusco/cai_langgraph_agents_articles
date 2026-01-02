@@ -50,30 +50,31 @@ Assumptions:
 # Imports
 # =============================
 from typing import TypedDict, List, Dict, Any, Optional
-
 import gradio as gr
 from pyspark.sql import SparkSession
 from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI
-
 
 # =============================
 # Spark Session
 # =============================
 spark = SparkSession.builder.getOrCreate()
 
+# =============================
+# CAI Environment Variables
+# =============================
+MODEL_ID = os.environ["MODEL_ID"]
+ENDPOINT_BASE_URL = os.environ["ENDPOINT_BASE_URL"]
+CDP_TOKEN = os.environ["CDP_TOKEN"]
 
 # =============================
-# LLM Placeholder (fill later)
+# LLM
 # =============================
-# Example:
-# llm = ChatOpenAI(
-#     model="...",
-#     base_url="https://your-endpoint",
-#     api_key="YOUR_KEY"
-# )
-llm = None
-
+llm = ChatOpenAI(
+    model_name=MODEL_ID,
+    openai_api_base=ENDPOINT_BASE_URL,
+    openai_api_key=CDP_TOKEN
+)
 
 # =============================
 # LangGraph State
