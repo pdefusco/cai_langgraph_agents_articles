@@ -50,15 +50,16 @@ Assumptions:
 # Imports
 # =============================
 from typing import TypedDict, List, Dict, Any, Optional
-import gradio as gr
 from pyspark.sql import SparkSession
 from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI
+import gradio as gr
+import os
 
 # =============================
 # Spark Session
 # =============================
-spark = SparkSession.builder.getOrCreate()
+spark = SparkSession.builder.config("spark.kerberos.access.hadoopFileSystems","s3a://go01-demo/").getOrCreate()
 
 # =============================
 # CAI Environment Variables
@@ -351,4 +352,7 @@ with gr.Blocks(title="Spark Metrics Agent") as demo:
 
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.queue(default_concurrency_limit=16).launch(share=False,
+                show_error=True,
+                server_name='127.0.0.1',
+                server_port=int(os.getenv('CDSW_APP_PORT')))
