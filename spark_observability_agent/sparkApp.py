@@ -37,8 +37,10 @@
 # #  Author(s): Paul de Fusco
 #***************************************************************************/
 
+import random
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import from_unixtime, col, lit
+from pyspark.sql.functions import from_unixtime, col, lit, timestamp_seconds
+from sparkmeasure import TaskMetrics
 
 spark = (SparkSession
   .builder
@@ -49,17 +51,20 @@ spark = (SparkSession
 
 app_id = spark.sparkContext.applicationId
 
-
-from sparkmeasure import TaskMetrics
-
 taskmetrics = TaskMetrics(spark)
-taskmetrics.runandmeasure(globals(), 'spark.sql("select count(*) from range(1000) cross join range(1000) cross join range(1000)").show()')
+
+intensity = random.choice([1000, 1000, 1000, 1000, 1000, 1000, 25000, 450000])
+print(f"Executing with intensity factor: {intensity}")
+
+# Use Spark SQL to perform a cross join that forces a shuffle and heavy computation
+# We use range() to generate two temporary tables and join them.
+query = f"""SELECT count(*) FROM (SELECT id FROM range({intensity})) a CROSS JOIN (SELECT id FROM range({intensity})) b"""
+
+taskmetrics.runandmeasure(globals(), f'spark.sql("{query}").show()')
 taskMetricsDf = taskmetrics.create_taskmetrics_DF("PerfTaskMetrics")
 
 # from_unixtime returns a string by default, so cast it to timestamp
 #taskMetricsDf = taskMetricsDf.withColumn("finishTime", from_unixtime(col("finishTime")).cast("timestamp"))
-
-from pyspark.sql.functions import col, timestamp_seconds
 
 # Use timestamp_seconds for better precision handling than from_unixtime
 taskMetricsDf = taskMetricsDf.withColumn("ts", timestamp_seconds(col("finishTime") / 1000))
@@ -82,3 +87,5 @@ except Exception:
 
 
 spark.sql("select count(*) from default.spark_task_metrics").show()
+print(f"Executing with intensity factor: {intensity}")
+#spark.sql("drop table default.spark_task_metrics")

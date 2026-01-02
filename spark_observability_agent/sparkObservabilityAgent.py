@@ -55,6 +55,7 @@ from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI
 import gradio as gr
 import os
+import statistics
 
 # =============================
 # Spark Session
@@ -96,6 +97,10 @@ class MetricsState(TypedDict):
 
     query_attempts: int
     supervisor_decision: Optional[str]
+
+    slow_apps: Optional[List[Dict[str, Any]]]
+    baseline_median: Optional[float]
+    metric_used: Optional[str]
 
 
 # =============================
@@ -225,24 +230,79 @@ def simplify_plan_agent(state: MetricsState) -> MetricsState:
 def metrics_analyst_agent(state: MetricsState) -> MetricsState:
     rows = state.get("query_result") or []
 
-    analysis = (
-      f"Analyzed {len(rows)} metric groups"
-      "Potential skew or regression detected."
-      if rows else
-      "insufficient data to detect anomalies"
-    )
+    if not rows:
+        return {
+            **state,
+            "analysis": "No data available for the selected time window."
+        }
 
-    return {**state, "analysis": analysis}
+    # Detect which metric column exists
+    metric_col = None
+    for key in rows[0].keys():
+        if key.startswith("avg_") or key.startswith("p95_"):
+            metric_col = key
+            break
+
+    if not metric_col:
+        return {
+            **state,
+            "analysis": "No performance metrics found in query results."
+        }
+
+    values = [r[metric_col] for r in rows if r[metric_col] is not None]
+    median_val = statistics.median(values)
+
+    slow_apps = []
+    for r in rows:
+        val = r[metric_col]
+        if val and val > 1.3 * median_val:
+            slow_apps.append({
+                "appId": r.get("appId") or r.get("stageId"),
+                "value": val
+            })
+
+    if not slow_apps:
+        analysis = (
+            f"All applications performed within normal range. "
+            f"Median {metric_col} was {median_val:.2f}."
+        )
+    else:
+        offenders = ", ".join(
+            f"{a['appId']} ({a['value']:.2f})"
+            for a in slow_apps[:3]
+        )
+
+        analysis = (
+            f"Identified {len(slow_apps)} slower-than-normal applications. "
+            f"Median {metric_col}: {median_val:.2f}. "
+            f"Notable outliers: {offenders}."
+        )
+
+    return {
+        **state,
+        "analysis": analysis,
+        "slow_apps": slow_apps,
+        "baseline_median": median_val,
+        "metric_used": metric_col
+    }
 
 
 def final_insight_agent(state: MetricsState) -> MetricsState:
-    return {
-        **state,
-        "final_answer": (
-            f"Intent: {state['intent']}\n\n"
-            f"{state.get('analysis', '')}"
+    if state.get("slow_apps"):
+        details = "\n".join(
+            f"- {a['appId']}: {state['metric_used']} = {a['value']:.2f}"
+            for a in state["slow_apps"]
         )
-    }
+    else:
+        details = "No significant slow-running applications detected."
+
+    final = (
+        f"Intent: {state['intent']}\n\n"
+        f"{state['analysis']}\n\n"
+        f"Details:\n{details}"
+    )
+
+    return {**state, "final_answer": final}
 
 
 # =============================
