@@ -203,4 +203,8 @@ with gr.Blocks() as demo:
         btn = gr.Button(sq)
         btn.click(run_langgraph, inputs=None, outputs=output_box, api_name=None)
 
-demo.launch()
+
+demo.queue(default_concurrency_limit=16).launch(share=False,
+            show_error=True,
+            server_name='127.0.0.1',
+            server_port=int(os.getenv('CDSW_APP_PORT')))
