@@ -223,14 +223,14 @@ def simplify_plan_agent(state: MetricsState) -> MetricsState:
 
 
 def metrics_analyst_agent(state: MetricsState) -> MetricsState:
-    rows = state["query_result"]
-    if not rows:
-        analysis = "No significant anomalies detected."
-    else:
-        analysis = (
-            f"Analyzed {len(rows)} metric groups. "
-            f"Potential skew or regression detected."
-        )
+    rows = state.get("query_result") or []
+
+    analysis = (
+      f"Analyzed {len(rows)} metric groups"
+      "Potential skew or regression detected."
+      if rows else
+      "insufficient data to detect anomalies"
+    )
 
     return {**state, "analysis": analysis}
 
@@ -258,7 +258,9 @@ def supervisor_router(state: MetricsState) -> str:
         return "simplify"
     if decision == "proceed_to_analysis":
         return "analyze"
-    return "final"
+    if decision == "force_finalize":
+        return "final"
+    raise ValueError(f"Uknown supervisor decision: {decision}")
 
 
 # =============================
@@ -294,6 +296,7 @@ graph.add_conditional_edges(
 graph.add_edge("text_to_sql", "supervisor")
 graph.add_edge("execute", "supervisor")
 graph.add_edge("simplify", "supervisor")
+graph.add_edge("analyze", "final")
 graph.add_edge("final", END)
 
 app = graph.compile()
