@@ -42,7 +42,7 @@ Spark Metrics Multi-Agent App (LangGraph + Supervisor + Gradio)
 
 Assumptions:
 - SparkSession with Hive support is available
-- Hive table `spark_app_metrics` already exists
+- Hive table `spark_task_metrics` already exists
 - LLM endpoint will be added later via ChatOpenAI
 """
 
@@ -101,14 +101,14 @@ class MetricsState(TypedDict):
 # =============================
 # Spark SQL Executor (Guarded)
 # =============================
-ALLOWED_TABLE = "spark_app_metrics"
+ALLOWED_TABLE = "spark_task_metrics"
 
 def validate_sql(sql: str):
     sql_lower = sql.lower()
     if any(x in sql_lower for x in ["insert", "update", "delete", "drop"]):
         raise ValueError("Only SELECT queries are allowed")
     if ALLOWED_TABLE not in sql_lower:
-        raise ValueError("Query must read from spark_app_metrics")
+        raise ValueError("Query must read from spark_task_metrics")
     if "limit" not in sql_lower:
         raise ValueError("LIMIT clause is required")
 
@@ -126,13 +126,13 @@ def intent_agent(state: MetricsState) -> MetricsState:
     q = state["user_question"].lower()
     if "slow" in q or "regression" in q:
         intent = "performance_regression"
-        metrics = ["task_duration_ms", "shuffle_read_mb"]
+        metrics = ["duration", "shuffleRemoteBytesRead"]
     elif "cost" in q:
         intent = "cost_analysis"
-        metrics = ["executor_cpu_time"]
+        metrics = ["executorCpuTime"]
     else:
         intent = "general_observability"
-        metrics = ["task_duration_ms"]
+        metrics = ["duration"]
 
     return {**state, "intent": intent, "requested_metrics": metrics}
 
@@ -140,17 +140,17 @@ def intent_agent(state: MetricsState) -> MetricsState:
 def metrics_planner_agent(state: MetricsState) -> MetricsState:
     if state["intent"] == "performance_regression":
         plan = {
-            "group_by": ["stage_id"],
+            "group_by": ["stageId"],
             "aggregations": {
-                "task_duration_ms": "p95",
-                "shuffle_read_mb": "avg"
+                "duration": "p95",
+                "shuffleRemoteBytesRead": "avg"
             },
             "time_window_days": 1
         }
     else:
         plan = {
-            "group_by": ["app_id"],
-            "aggregations": {"task_duration_ms": "avg"},
+            "group_by": ["appId"],
+            "aggregations": {"duration": "avg"},
             "time_window_days": 1
         }
 
@@ -175,8 +175,8 @@ def text_to_sql_agent(state: MetricsState) -> MetricsState:
     sql = f"""
     SELECT
       {select_sql}
-    FROM spark_app_metrics
-    WHERE event_time >= current_timestamp() - INTERVAL {plan['time_window_days']} DAYS
+    FROM spark_task_metrics
+    WHERE ts >= current_timestamp() - INTERVAL {plan['time_window_days']} DAYS
     GROUP BY {group_by}
     LIMIT 100
     """
@@ -217,7 +217,7 @@ def supervisor_agent(state: MetricsState) -> MetricsState:
 def simplify_plan_agent(state: MetricsState) -> MetricsState:
     simplified_plan = {
         **state["query_plan"],
-        "group_by": ["stage_id"]
+        "group_by": ["stageId"]
     }
     return {**state, "query_plan": simplified_plan, "sql_query": None}
 

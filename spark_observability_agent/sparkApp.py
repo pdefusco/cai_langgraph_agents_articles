@@ -38,6 +38,7 @@
 #***************************************************************************/
 
 from pyspark.sql import SparkSession
+from pyspark.sql.functions import from_unixtime, col, lit
 
 spark = (SparkSession
   .builder
@@ -46,37 +47,38 @@ spark = (SparkSession
   .config("spark.kerberos.access.hadoopFileSystems","s3a://go01-demo/")
   .getOrCreate() )
 
+app_id = spark.sparkContext.applicationId
+
+
 from sparkmeasure import TaskMetrics
+
 taskmetrics = TaskMetrics(spark)
+taskmetrics.runandmeasure(globals(), 'spark.sql("select count(*) from range(1000) cross join range(1000) cross join range(1000)").show()')
+taskMetricsDf = taskmetrics.create_taskmetrics_DF("PerfTaskMetrics")
 
-taskmetrics.begin()
-spark.sql("select count(*) from range(1000) cross join range(1000) cross join range(100)").show()
-taskmetrics.end()
-taskmetrics.print_report()
+# from_unixtime returns a string by default, so cast it to timestamp
+#taskMetricsDf = taskMetricsDf.withColumn("finishTime", from_unixtime(col("finishTime")).cast("timestamp"))
 
-spark.sql("select * from PerfTaskMetrics").show()
+from pyspark.sql.functions import col, timestamp_seconds
 
+# Use timestamp_seconds for better precision handling than from_unixtime
+taskMetricsDf = taskMetricsDf.withColumn("ts", timestamp_seconds(col("finishTime") / 1000))
 
-from sparkmeasure import StageMetrics
-stagemetrics = StageMetrics(spark)
-stagemetrics.runandmeasure(globals(), "select count(*) from range(1000) cross join range(1000) cross join range(100)")
+# Add app_id
+taskMetricsDf = taskMetricsDf.withColumn("appId", lit(app_id))
 
-df = stagemetrics.create_stagemetrics_DF("PerfStageMetrics")
-df.show()
-#stagemetrics.save_data(df.orderBy("jobId", "stageId"), "stagemetrics_test1", "json")
-
-
-
-taskMetricsDf = spark.table("PerfTaskMetrics")
+#pandas_df = df.toPandas()
 
 try:
     taskMetricsDf.write \
-        .mode("overwrite") \
         .format("parquet") \
-        .saveAsTable("default.spark_app_metrics")
+        .saveAsTable("default.spark_task_metrics")
 
 except Exception:
     taskMetricsDf.write \
         .mode("append") \
         .format("parquet") \
-        .saveAsTable("default.spark_app_metrics")
+        .saveAsTable("default.spark_task_metrics")
+
+
+spark.sql("select count(*) from default.spark_task_metrics").show()
