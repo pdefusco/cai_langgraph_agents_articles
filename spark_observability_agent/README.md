@@ -6,7 +6,7 @@
 
 In this tutorial you will learn how to implement a MultiAgent System in Cloudera AI leveraging Nvidia Nemotron 49B, LangGraph, and the Cloudera AI Inference Service, in order to build a Spark Observability system.
 
-![alt text](../img/arch.png)
+![alt text](img/arch.png)
 
 ### Motivation
 
@@ -51,9 +51,9 @@ Runtimes:
   PBJ Workbench	Python 3.10	Standard 2025.09
 ```
 
-![alt text](../img/create-project-1.png)
+![alt text](img/create-project-1.png)
 
-![alt text](../img/create-project-2.png)
+![alt text](img/create-project-2.png)
 
 #### 2. Create the Project Environment Variables with Secrets
 
