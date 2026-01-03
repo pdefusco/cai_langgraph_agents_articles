@@ -6,8 +6,6 @@
 
 In this tutorial you will learn how to implement a MultiAgent System in Cloudera AI leveraging Nvidia Nemotron 49B, LangGraph, and the Cloudera AI Inference Service, in order to build a Spark Observability system.
 
-![alt text](img/arch.png)
-
 ### Motivation
 
 With Cloudera AI, enterprises can download open source GenAI models and securely host them in their Public or Private Cloud, in order to implement LLM-powered applications while preventing proprietary information from being shared with LLM Service Providers such as OpenAI.
@@ -111,7 +109,9 @@ Script: spark_observability_agent/sparkObservabilityAgent.py
 
 #### 5. Interact with the Agent App
 
-Open the Application and ask input basic questions such as ```Did any stages experience performance regression?``` and validate the output. Notice your results will be different from what is shown in the screenshot below, reflecting the fact that spark applications will run with different duration based on a random parameter defined in the ```sparkApp.py``` script.
+Open the Application and ask input basic questions such as ```Did any stages experience performance regression?``` and validate the output.
+
+Notice your results will be different from what is shown in the screenshot below, reflecting the fact that spark applications will run with different duration based on a random parameter defined in the ```sparkApp.py``` script.
 
 ![alt text](img/app-output.png)
 
