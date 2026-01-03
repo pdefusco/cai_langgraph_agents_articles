@@ -107,6 +107,8 @@ Script: spark_observability_agent/sparkObservabilityAgent.py
 
 ![alt text](img/app-settings.png)
 
+![alt text](img/app-deployed-ok.png)
+
 #### 5. Interact with the Agent App
 
 Open the Application and ask input basic questions such as ```Did any stages experience performance regression?``` and validate the output.
