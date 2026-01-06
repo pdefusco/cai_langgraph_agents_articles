@@ -97,18 +97,17 @@ llmClient = OpenAI(
 
 def get_query_embedding(text: str):
     return llmClient.embeddings.create(
-        input=f"query: {text}",
-        model=MODEL_ID,
-        input_type="query"
+        input=text,
+        model=EMBED_MODEL_ID,
+        extra_body={"input_type": "query"},
     ).data[0].embedding
 
 def get_passage_embedding(text: str):
     return llmClient.embeddings.create(
-        input=f"passage: {text}",
-        model=MODEL_ID,
-        input_type="passage"
+        input=text,
+        model=EMBED_MODEL_ID,
+        extra_body={"input_type": "passage"},
     ).data[0].embedding
-
 
 # -------------------------
 # 3️⃣ Chroma collections
@@ -272,7 +271,6 @@ with gr.Blocks() as demo:
         inputs=[input_box],
         outputs=[output_box]
     )
-
 
 demo.queue(default_concurrency_limit=16).launch(share=False,
             show_error=True,
