@@ -168,9 +168,7 @@ def spark_retrieval(state: GraphState):
     state["spark_results"] = [
         {"document": d, "metadata": m} for d, m in zip(results["documents"][0], results["metadatas"][0])
     ]
-    return {
-    "spark_results": state["spark_results"]
-}
+    return {"state": state}
 
 
 def hadoop_retrieval(state: GraphState):
@@ -180,9 +178,7 @@ def hadoop_retrieval(state: GraphState):
     state["hadoop_results"] = [
         {"document": d, "metadata": m} for d, m in zip(results["documents"][0], results["metadatas"][0])
     ]
-    return {
-    "hadoop_results": state["hadoop_results"]
-}
+    return {"state": state}
 
 
 def synthesis_node(state: GraphState):
@@ -232,7 +228,10 @@ def run_langgraph(query: str) -> str:
 
     inputs = {
         "query": query,
-        "messages": [{"role": "user", "content": query}]
+        "messages": [{"role": "user", "content": query}],
+        "spark_results": [],
+        "hadoop_results": [],
+        "final_answer": ""
     }
 
     # Ensure you are using the logic from the previous fix for GraphState
