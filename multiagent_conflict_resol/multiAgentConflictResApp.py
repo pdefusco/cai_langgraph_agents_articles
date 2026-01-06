@@ -121,13 +121,27 @@ def ingest_demo_data():
         )
         time.sleep(0.5)
 
-# Uncomment below if you want to ingest fresh data
-# ingest_demo_data()
+# =============================
+# LangGraph State
+# =============================
+from typing import TypedDict, Annotated, List, Union
+from langgraph.graph import StateGraph, START, END
+from langchain_core.messages import BaseMessage
+
+class GraphState(TypedDict):
+    # This keeps track of the conversation
+    messages: Annotated[List[BaseMessage], "add_messages"]
+    # Your custom keys
+    query: str
+    spark_results: List[dict]
+    hadoop_results: List[dict]
+    final_answer: str
 
 # -------------------------
 # 5️⃣ LangGraph nodes
 # -------------------------
-def spark_retrieval(state: MessagesState):
+
+def spark_retrieval(state: GraphState):
     query = state["query"]
     emb = get_embedding(query)
     results = spark_col.query(query_embeddings=[emb], n_results=3)
@@ -136,7 +150,7 @@ def spark_retrieval(state: MessagesState):
     ]
     return {"state": state}
 
-def hadoop_retrieval(state: MessagesState):
+def hadoop_retrieval(state: GraphState):
     query = state["query"]
     emb = get_embedding(query)
     results = hadoop_col.query(query_embeddings=[emb], n_results=3)
@@ -145,7 +159,7 @@ def hadoop_retrieval(state: MessagesState):
     ]
     return {"state": state}
 
-def synthesis_node(state: MessagesState):
+def synthesis_node(state: GraphState):
     spark_docs = [r["document"] for r in state.get("spark_results", [])]
     hadoop_docs = [r["document"] for r in state.get("hadoop_results", [])]
 
@@ -167,7 +181,7 @@ def synthesis_node(state: MessagesState):
 # -------------------------
 # 6️⃣ Build LangGraph
 # -------------------------
-graph = StateGraph(MessagesState)
+graph = StateGraph(GraphState)
 
 graph.add_node("spark_agent", spark_retrieval)
 graph.add_node("hadoop_agent", hadoop_retrieval)
@@ -186,9 +200,14 @@ compiled = graph.compile()
 # 7️⃣ Runner function
 # -------------------------
 def run_langgraph(query: str) -> str:
-    initial_state = {"query": query}
-    out = compiled.invoke({"messages": [{"role": "user", "content": query}], **initial_state})
-    return out["state"]["final_answer"]
+    # Pass the initial state matching your GraphState definition
+    inputs = {
+        "query": query,
+        "messages": [{"role": "user", "content": query}]
+    }
+    out = compiled.invoke(inputs)
+    # Access the final_answer directly from the output dict
+    return out["final_answer"]
 
 # -------------------------
 # 8️⃣ Gradio UI
