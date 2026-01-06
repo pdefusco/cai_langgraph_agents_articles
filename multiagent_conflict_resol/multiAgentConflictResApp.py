@@ -50,7 +50,17 @@ import time
 # -------------------------
 # 1️⃣ Initialize clients
 # -------------------------
-openai_client = OpenAI()  # Ensure OPENAI_API_KEY is set
+MODEL_ID = os.environ["MODEL_ID"]
+ENDPOINT_BASE_URL = os.environ["ENDPOINT_BASE_URL"]
+CDP_TOKEN = os.environ["CDP_TOKEN"]
+
+#openai_client = OpenAI()  # Ensure OPENAI_API_KEY is set
+embedding_model = ChatOpenAI(
+    model_name=MODEL_ID,
+    openai_api_base=ENDPOINT_BASE_URL,
+    openai_api_key=CDP_TOKEN
+)
+
 client = Client(Settings(chroma_db_impl="duckdb+parquet", persist_directory="./chroma_demo"))
 
 # -------------------------
@@ -75,7 +85,7 @@ def chunk_text(text, max_len=800):
     return chunks
 
 def get_embedding(text: str):
-    resp = openai_client.embeddings.create(input=text, model="text-embedding-3-small")
+    resp = embedding_model.embeddings.create(input=text, model="text-embedding-3-small")
     return resp.data[0].embedding
 
 # -------------------------
