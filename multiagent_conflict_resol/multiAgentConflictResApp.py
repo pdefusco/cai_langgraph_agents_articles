@@ -39,8 +39,8 @@
 
 # multi_agent_langgraph_demo.py
 import requests
+import chromadb
 from bs4 import BeautifulSoup
-from chromadb import Client
 from chromadb.config import Settings
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, MessagesState, START, END
@@ -62,7 +62,7 @@ embedding_model = ChatOpenAI(
     openai_api_key=CDP_TOKEN
 )
 
-client = Client(Settings(chroma_db_impl="duckdb+parquet", persist_directory="./chroma_demo"))
+client = chromadb.PersistentClient()
 
 # -------------------------
 # 2️⃣ Scrape helper
