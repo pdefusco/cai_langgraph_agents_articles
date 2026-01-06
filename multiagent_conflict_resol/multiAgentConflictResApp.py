@@ -42,7 +42,7 @@ import requests
 import chromadb
 from bs4 import BeautifulSoup
 from chromadb.config import Settings
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langgraph.graph import StateGraph, MessagesState, START, END
 import gradio as gr
 import time
@@ -56,10 +56,10 @@ ENDPOINT_BASE_URL = os.environ["ENDPOINT_BASE_URL"]
 CDP_TOKEN = os.environ["CDP_TOKEN"]
 
 #openai_client = OpenAI()  # Ensure OPENAI_API_KEY is set
-embedding_model = ChatOpenAI(
-    model_name=MODEL_ID,
-    openai_api_base=ENDPOINT_BASE_URL,
-    openai_api_key=CDP_TOKEN
+embedding_model = OpenAIEmbeddings(
+    model=MODEL_ID,
+    base_url=ENDPOINT_BASE_URL,
+    api_key=CDP_TOKEN
 )
 
 client = chromadb.PersistentClient()
@@ -86,7 +86,7 @@ def chunk_text(text, max_len=800):
     return chunks
 
 def get_embedding(text: str):
-    resp = embedding_model.embeddings.create(input=text, model="text-embedding-3-small")
+    resp = embedding_model.embed_query(text)
     return resp.data[0].embedding
 
 # -------------------------
