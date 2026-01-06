@@ -116,7 +116,7 @@ spark_col = client.get_or_create_collection("spark_tuning")
 hadoop_col = client.get_or_create_collection("hadoop_perf")
 
 # -------------------------
-# 4️⃣ Optional ingestion
+# 4️⃣ Chroma ingestion
 # -------------------------
 def ingest_demo_data():
     # Spark docs
@@ -124,9 +124,10 @@ def ingest_demo_data():
     spark_chunks = chunk_text(fetch_text(spark_url))
     for i, chunk in enumerate(spark_chunks):
         spark_col.add(
+            ids=[f"spark_{i}"],  # <--- unique ID for each chunk
             documents=[chunk],
             metadatas=[{"source": "spark_tuning", "chunk_index": i}],
-            embeddings=[get_query_embedding(chunk)]
+            embeddings=[get_passage_embedding(chunk)]  # match the retrieval method
         )
         time.sleep(0.5)
 
@@ -135,25 +136,33 @@ def ingest_demo_data():
     hadoop_chunks = chunk_text(fetch_text(hadoop_url))
     for j, chunk in enumerate(hadoop_chunks):
         hadoop_col.add(
+            ids=[f"hadoop_{j}"],  # <--- unique ID for each chunk
             documents=[chunk],
             metadatas=[{"source": "hadoop_perf", "chunk_index": j}],
-            embeddings=[get_query_embedding(chunk)]
+            embeddings=[get_passage_embedding(chunk)]  # match retrieval
         )
         time.sleep(0.5)
+
 
 # =============================
 # LangGraph State
 # =============================
-from typing import TypedDict, Annotated, List, Union
-from langgraph.graph import StateGraph, START, END
+from typing import List
+from langgraph.graph import StateGraph, MessagesState
 from langchain_core.messages import BaseMessage
+from typing_extensions import TypedDict
+from typing import Annotated
 
 class GraphState(TypedDict):
-    messages: list
+    # Annotate messages as MessagesState so LangGraph knows it's a special multi-value key
+    messages: Annotated[MessagesState, "messages"]
     query: str
     spark_results: list
     hadoop_results: list
     final_answer: str
+
+
+graph = StateGraph(GraphState)
 
 # -------------------------
 # 5️⃣ LangGraph nodes
@@ -163,24 +172,24 @@ def spark_retrieval(state):
     query = state["query"]
     emb = get_passage_embedding(query)
     results = spark_col.query(query_embeddings=[emb], n_results=3)
+
     state["spark_results"] = [
         {"document": d, "metadata": m} for d, m in zip(results["documents"][0], results["metadatas"][0])
     ]
     print("🔥 Running spark_retrieval")
-
-    return {"state": state}
+    return state  # just state, no messages append
 
 
 def hadoop_retrieval(state):
     query = state["query"]
     emb = get_passage_embedding(query)
     results = hadoop_col.query(query_embeddings=[emb], n_results=3)
+
     state["hadoop_results"] = [
         {"document": d, "metadata": m} for d, m in zip(results["documents"][0], results["metadatas"][0])
     ]
     print("🔥 Running hadoop_retrieval")
-
-    return {"state": state}
+    return state  # just state, no messages append
 
 
 def synthesis_node(state):
@@ -191,32 +200,32 @@ def synthesis_node(state):
     summary += "\n**Spark Optimization:**\n" + "\n".join(f"- {d}" for d in spark_docs) + "\n"
     summary += "\n**Hadoop Optimization:**\n" + "\n".join(f"- {d}" for d in hadoop_docs) + "\n\n"
 
-    # Detect overlapping keywords as simple conflict detection
     spark_words = set(" ".join(spark_docs).lower().split())
     hadoop_words = set(" ".join(hadoop_docs).lower().split())
     overlap = spark_words.intersection(hadoop_words)
     if overlap:
         summary += f"⚠️ Overlapping terms: {', '.join(list(overlap)[:10])}\n"
 
-    summary += "\n💡 Recommendation: Consider both application-level and storage-level optimizations, and ensure caching/parallelism strategies do not conflict."
+    summary += "\n💡 Recommendation: Consider both application-level and storage-level optimizations."
+
     state["final_answer"] = summary
     print("🔥 Running synthesis_node")
+    return state
 
-    return {"state": state}
 
 # -------------------------
 # 6️⃣ Build LangGraph
 # -------------------------
 graph = StateGraph(GraphState)
 
+# Add nodes
 graph.add_node("spark_agent", spark_retrieval)
 graph.add_node("hadoop_agent", hadoop_retrieval)
 graph.add_node("synthesis_agent", synthesis_node)
 
-# Flow edges
+# Sequential edges
 graph.add_edge(START, "spark_agent")
-graph.add_edge(START, "hadoop_agent")
-graph.add_edge("spark_agent", "synthesis_agent")
+graph.add_edge("spark_agent", "hadoop_agent")
 graph.add_edge("hadoop_agent", "synthesis_agent")
 graph.add_edge("synthesis_agent", END)
 
@@ -225,8 +234,10 @@ compiled = graph.compile()
 # -------------------------
 # 7️⃣ Runner function
 # -------------------------
+
 def run_langgraph(query: str) -> str:
-    # 🛡️ Safety check to prevent NoneType errors
+
+        # 🛡️ Safety check to prevent NoneType errors
     if not query:
         return "Please enter a question."
 
@@ -238,12 +249,16 @@ def run_langgraph(query: str) -> str:
         "final_answer": ""
     }
 
-    # Ensure you are using the logic from the previous fix for GraphState
-    out = compiled.invoke(state)
+    result = compiled.invoke(state)
+    print(result["final_answer"])
+    return result["final_answer"]
 
-    # Return the string directly for the Gradio Markdown/Textbox component
-    return out.get("final_answer", "No answer generated.")
 
+#ingest_demo_data()
+#print("Spark docs:", len(spark_col.get()["documents"]))
+#print("Hadoop docs:", len(hadoop_col.get()["documents"]))
+
+#run_langgraph("How many default shuffle partitions does Spark have?")
 
 # -------------------------
 # 8️⃣ Gradio UI
