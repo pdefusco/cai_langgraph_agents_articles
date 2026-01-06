@@ -126,7 +126,7 @@ def ingest_demo_data():
         spark_col.add(
             documents=[chunk],
             metadatas=[{"source": "spark_tuning", "chunk_index": i}],
-            embeddings=[get_embedding(chunk)]
+            embeddings=[get_query_embedding(chunk)]
         )
         time.sleep(0.5)
 
@@ -137,7 +137,7 @@ def ingest_demo_data():
         hadoop_col.add(
             documents=[chunk],
             metadatas=[{"source": "hadoop_perf", "chunk_index": j}],
-            embeddings=[get_embedding(chunk)]
+            embeddings=[get_query_embedding(chunk)]
         )
         time.sleep(0.5)
 
@@ -163,7 +163,7 @@ class GraphState(TypedDict):
 
 def spark_retrieval(state: GraphState):
     query = state["query"]
-    emb = get_embedding(query)
+    emb = get_passage_embedding(query)
     results = spark_col.query(query_embeddings=[emb], n_results=3)
     state["spark_results"] = [
         {"document": d, "metadata": m} for d, m in zip(results["documents"][0], results["metadatas"][0])
@@ -175,7 +175,7 @@ def spark_retrieval(state: GraphState):
 
 def hadoop_retrieval(state: GraphState):
     query = state["query"]
-    emb = get_embedding(query)
+    emb = get_passage_embedding(query)
     results = hadoop_col.query(query_embeddings=[emb], n_results=3)
     state["hadoop_results"] = [
         {"document": d, "metadata": m} for d, m in zip(results["documents"][0], results["metadatas"][0])
