@@ -56,13 +56,13 @@ ENDPOINT_BASE_URL = os.environ["ENDPOINT_BASE_URL"]
 CDP_TOKEN = os.environ["CDP_TOKEN"]
 
 #openai_client = OpenAI()  # Ensure OPENAI_API_KEY is set
-embedding_model = OpenAIEmbeddings(
-    model=MODEL_ID,
-    base_url=ENDPOINT_BASE_URL,
-    api_key=CDP_TOKEN
-)
+#embedding_model = OpenAIEmbeddings(
+#    model=MODEL_ID,
+#    base_url=ENDPOINT_BASE_URL,
+#    api_key=CDP_TOKEN
+#)
 
-client = chromadb.PersistentClient()
+#client = chromadb.PersistentClient()
 
 # -------------------------
 # 2️⃣ Scrape helper
@@ -73,7 +73,7 @@ def fetch_text(url):
     paragraphs = soup.find_all(["p", "li", "h1","h2","h3","pre"])
     return "\n".join([p.get_text(separator=" ", strip=True) for p in paragraphs])
 
-def chunk_text(text, max_len=400):
+def chunk_text(text, max_len=250):
     lines = text.split("\n")
     chunks, current = [], []
     for line in lines:
@@ -85,11 +85,40 @@ def chunk_text(text, max_len=400):
         chunks.append(" ".join(current))
     return chunks
 
+import requests
 from tenacity import retry, wait_exponential, stop_after_attempt
 
 @retry(wait=wait_exponential(min=1, max=10), stop=stop_after_attempt(5))
 def get_embedding(text: str):
-    return embedding_model.embed_query(text)
+    resp = requests.post(
+        f"{ENDPOINT_BASE_URL}/v1/embeddings",
+        headers={
+            "Authorization": f"Bearer {CDP_TOKEN}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": MODEL_ID,
+            "input": text,
+        },
+        timeout=30,
+    )
+
+    if resp.status_code != 200:
+        raise RuntimeError(
+            f"AIS embedding failed ({resp.status_code}): {resp.text}"
+        )
+
+    payload = resp.json()
+
+    # Cloudera AIS usually returns this format
+    if "data" in payload:
+        return payload["data"][0]["embedding"]
+    elif "embedding" in payload:
+        return payload["embedding"]
+    elif "embeddings" in payload:
+        return payload["embeddings"][0]
+    else:
+        raise RuntimeError(f"Unknown AIS embedding response: {payload}")
 
 # -------------------------
 # 3️⃣ Chroma collections
