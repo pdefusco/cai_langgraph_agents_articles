@@ -169,9 +169,9 @@ def synthesis_node(state: MessagesState):
 # -------------------------
 graph = StateGraph(MessagesState)
 
-graph.add_node(spark_retrieval, name="spark_agent")
-graph.add_node(hadoop_retrieval, name="hadoop_agent")
-graph.add_node(synthesis_node, name="synthesis_agent")
+graph.add_node("spark_agent", spark_retrieval)
+graph.add_node("hadoop_agent", hadoop_retrieval)
+graph.add_node("synthesis_agent", synthesis_node)
 
 # Flow edges
 graph.add_edge(START, "spark_agent")
