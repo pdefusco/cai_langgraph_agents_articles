@@ -90,21 +90,21 @@ from openai import OpenAI
 import json
 from tenacity import retry, wait_exponential, stop_after_attempt
 
-client = OpenAI(
+llmClient = OpenAI(
     base_url=ENDPOINT_BASE_URL,  # EXACT value from AIS UI (ends with /v1)
     api_key=CDP_TOKEN,
 )
 
 @retry(wait=wait_exponential(min=1, max=10), stop=stop_after_attempt(3))
 def get_query_embedding(text: str):
-    return client.embeddings.create(
+    return llmClient.embeddings.create(
         input=text,
         model="nvidia/nv-embedqa-e5-v5-query",
     ).data[0].embedding
 
 @retry(wait=wait_exponential(min=1, max=10), stop=stop_after_attempt(3))
 def get_passage_embedding(text: str):
-    return client.embeddings.create(
+    return llmClient.embeddings.create(
         input=text,
         model="nvidia/nv-embedqa-e5-v5-passage",
     ).data[0].embedding
