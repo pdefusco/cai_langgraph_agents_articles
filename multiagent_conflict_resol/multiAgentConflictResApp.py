@@ -149,12 +149,10 @@ from langgraph.graph import StateGraph, START, END
 from langchain_core.messages import BaseMessage
 
 class GraphState(TypedDict):
-    # This keeps track of the conversation
-    messages: Annotated[List[BaseMessage], "add_messages"]
-    # Your custom keys
+    messages: list
     query: str
-    spark_results: List[dict]
-    hadoop_results: List[dict]
+    spark_results: list
+    hadoop_results: list
     final_answer: str
 
 # -------------------------
@@ -168,6 +166,8 @@ def spark_retrieval(state):
     state["spark_results"] = [
         {"document": d, "metadata": m} for d, m in zip(results["documents"][0], results["metadatas"][0])
     ]
+    print("🔥 Running spark_retrieval")
+
     return {"state": state}
 
 
@@ -178,6 +178,8 @@ def hadoop_retrieval(state):
     state["hadoop_results"] = [
         {"document": d, "metadata": m} for d, m in zip(results["documents"][0], results["metadatas"][0])
     ]
+    print("🔥 Running hadoop_retrieval")
+
     return {"state": state}
 
 
@@ -198,6 +200,8 @@ def synthesis_node(state):
 
     summary += "\n💡 Recommendation: Consider both application-level and storage-level optimizations, and ensure caching/parallelism strategies do not conflict."
     state["final_answer"] = summary
+    print("🔥 Running synthesis_node")
+
     return {"state": state}
 
 # -------------------------
