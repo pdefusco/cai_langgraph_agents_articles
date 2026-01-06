@@ -95,19 +95,18 @@ llmClient = OpenAI(
     api_key=CDP_TOKEN,
 )
 
-@retry(wait=wait_exponential(min=1, max=10), stop=stop_after_attempt(3))
 def get_query_embedding(text: str):
     return llmClient.embeddings.create(
-        input=text,
-        model="nvidia/nv-embedqa-e5-v5-query",
+        input=f"query: {text}",
+        model=MODEL_ID
     ).data[0].embedding
 
-@retry(wait=wait_exponential(min=1, max=10), stop=stop_after_attempt(3))
 def get_passage_embedding(text: str):
     return llmClient.embeddings.create(
-        input=text,
-        model="nvidia/nv-embedqa-e5-v5-passage",
+        input=f"passage: {text}",
+        model=MODEL_ID
     ).data[0].embedding
+
 
 # -------------------------
 # 3️⃣ Chroma collections
