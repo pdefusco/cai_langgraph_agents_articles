@@ -59,8 +59,7 @@ CDP_TOKEN = os.environ["CDP_TOKEN"]
 embedding_model = OpenAIEmbeddings(
     model=MODEL_ID,
     base_url=ENDPOINT_BASE_URL,
-    api_key=CDP_TOKEN,
-    tiktoken_enabled=False
+    api_key=CDP_TOKEN
 )
 
 client = chromadb.PersistentClient()
