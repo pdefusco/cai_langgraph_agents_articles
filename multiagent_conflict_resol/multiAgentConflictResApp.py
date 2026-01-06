@@ -226,7 +226,7 @@ def run_langgraph(query: str) -> str:
     if not query:
         return "Please enter a question."
 
-    inputs = {
+    state = {
         "query": query,
         "messages": [{"role": "user", "content": query}],
         "spark_results": [],
@@ -235,7 +235,7 @@ def run_langgraph(query: str) -> str:
     }
 
     # Ensure you are using the logic from the previous fix for GraphState
-    out = compiled.invoke(inputs)
+    out = compiled.invoke(state)
 
     # Return the string directly for the Gradio Markdown/Textbox component
     return out.get("final_answer", "No answer generated.")
