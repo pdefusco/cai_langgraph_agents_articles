@@ -59,7 +59,8 @@ CDP_TOKEN = os.environ["CDP_TOKEN"]
 embedding_model = OpenAIEmbeddings(
     model=MODEL_ID,
     base_url=ENDPOINT_BASE_URL,
-    api_key=CDP_TOKEN
+    api_key=CDP_TOKEN,
+    tiktoken_enabled=False
 )
 
 client = chromadb.PersistentClient()
@@ -73,7 +74,7 @@ def fetch_text(url):
     paragraphs = soup.find_all(["p", "li", "h1","h2","h3","pre"])
     return "\n".join([p.get_text(separator=" ", strip=True) for p in paragraphs])
 
-def chunk_text(text, max_len=800):
+def chunk_text(text, max_len=400):
     lines = text.split("\n")
     chunks, current = [], []
     for line in lines:
@@ -85,9 +86,11 @@ def chunk_text(text, max_len=800):
         chunks.append(" ".join(current))
     return chunks
 
+from tenacity import retry, wait_exponential, stop_after_attempt
+
+@retry(wait=wait_exponential(min=1, max=10), stop=stop_after_attempt(5))
 def get_embedding(text: str):
-    resp = embedding_model.embed_query(text)
-    return resp.data[0].embedding
+    return embedding_model.embed_query(text)
 
 # -------------------------
 # 3️⃣ Chroma collections
@@ -148,7 +151,10 @@ def spark_retrieval(state: GraphState):
     state["spark_results"] = [
         {"document": d, "metadata": m} for d, m in zip(results["documents"][0], results["metadatas"][0])
     ]
-    return {"state": state}
+    return {
+    "spark_results": state["spark_results"]
+}
+
 
 def hadoop_retrieval(state: GraphState):
     query = state["query"]
@@ -157,7 +163,10 @@ def hadoop_retrieval(state: GraphState):
     state["hadoop_results"] = [
         {"document": d, "metadata": m} for d, m in zip(results["documents"][0], results["metadatas"][0])
     ]
-    return {"state": state}
+    return {
+    "hadoop_results": state["hadoop_results"]
+}
+
 
 def synthesis_node(state: GraphState):
     spark_docs = [r["document"] for r in state.get("spark_results", [])]
