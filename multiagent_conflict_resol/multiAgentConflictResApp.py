@@ -86,39 +86,28 @@ def chunk_text(text, max_len=250):
     return chunks
 
 import requests
+from openai import OpenAI
+import json
 from tenacity import retry, wait_exponential, stop_after_attempt
 
-@retry(wait=wait_exponential(min=1, max=10), stop=stop_after_attempt(5))
-def get_embedding(text: str):
-    resp = requests.post(
-        f"{ENDPOINT_BASE_URL}",
-        headers={
-            "Authorization": f"Bearer {CDP_TOKEN}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": MODEL_ID,
-            "input": text,
-        },
-        timeout=30,
-    )
+client = OpenAI(
+    base_url=ENDPOINT_BASE_URL,  # EXACT value from AIS UI (ends with /v1)
+    api_key=CDP_TOKEN,
+)
 
-    if resp.status_code != 200:
-        raise RuntimeError(
-            f"AIS embedding failed ({resp.status_code}): {resp.text}"
-        )
+@retry(wait=wait_exponential(min=1, max=10), stop=stop_after_attempt(3))
+def get_query_embedding(text: str):
+    return client.embeddings.create(
+        input=text,
+        model="nvidia/nv-embedqa-e5-v5-query",
+    ).data[0].embedding
 
-    payload = resp.json()
-
-    # Cloudera AIS usually returns this format
-    if "data" in payload:
-        return payload["data"][0]["embedding"]
-    elif "embedding" in payload:
-        return payload["embedding"]
-    elif "embeddings" in payload:
-        return payload["embeddings"][0]
-    else:
-        raise RuntimeError(f"Unknown AIS embedding response: {payload}")
+@retry(wait=wait_exponential(min=1, max=10), stop=stop_after_attempt(3))
+def get_passage_embedding(text: str):
+    return client.embeddings.create(
+        input=text,
+        model="nvidia/nv-embedqa-e5-v5-passage",
+    ).data[0].embedding
 
 # -------------------------
 # 3️⃣ Chroma collections
