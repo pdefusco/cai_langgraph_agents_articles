@@ -62,7 +62,7 @@ CDP_TOKEN = os.environ["CDP_TOKEN"]
 #    api_key=CDP_TOKEN
 #)
 
-#client = chromadb.PersistentClient()
+client = chromadb.PersistentClient()
 
 # -------------------------
 # 2️⃣ Scrape helper
