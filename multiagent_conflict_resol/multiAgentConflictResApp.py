@@ -98,13 +98,15 @@ llmClient = OpenAI(
 def get_query_embedding(text: str):
     return llmClient.embeddings.create(
         input=f"query: {text}",
-        model=MODEL_ID
+        model=MODEL_ID,
+        input_type="query"
     ).data[0].embedding
 
 def get_passage_embedding(text: str):
     return llmClient.embeddings.create(
         input=f"passage: {text}",
-        model=MODEL_ID
+        model=MODEL_ID,
+        input_type="passage"
     ).data[0].embedding
 
 
