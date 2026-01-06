@@ -42,7 +42,7 @@ import requests
 from bs4 import BeautifulSoup
 from chromadb import Client
 from chromadb.config import Settings
-from openai import OpenAI
+from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, MessagesState, START, END
 import gradio as gr
 import time
