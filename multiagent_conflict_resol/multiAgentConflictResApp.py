@@ -200,14 +200,21 @@ compiled = graph.compile()
 # 7️⃣ Runner function
 # -------------------------
 def run_langgraph(query: str) -> str:
-    # Pass the initial state matching your GraphState definition
+    # 🛡️ Safety check to prevent NoneType errors
+    if not query:
+        return "Please enter a question."
+
     inputs = {
         "query": query,
         "messages": [{"role": "user", "content": query}]
     }
+
+    # Ensure you are using the logic from the previous fix for GraphState
     out = compiled.invoke(inputs)
-    # Access the final_answer directly from the output dict
-    return out["final_answer"]
+
+    # Return the string directly for the Gradio Markdown/Textbox component
+    return out.get("final_answer", "No answer generated.")
+
 
 # -------------------------
 # 8️⃣ Gradio UI
@@ -220,18 +227,24 @@ sample_questions = [
 ]
 
 with gr.Blocks() as demo:
-    gr.Markdown("## Big Data Multi-Agent QA (LangGraph)")
+    gr.Markdown("## Big Data Multi-Agent QA")
+    input_box = gr.Textbox(label="Enter your question here")
+    output_box = gr.Markdown()
+    submit_btn = gr.Button("Submit")
 
-    input_box = gr.Textbox(label="Ask a question about Spark or Hadoop performance", placeholder="Type here...")
-    output_box = gr.Textbox(label="Answer", lines=15)
+    # CRITICAL: Ensure inputs=[input_box] only matches the 1 argument in run_langgraph
+    submit_btn.click(
+        fn=run_langgraph,
+        inputs=[input_box],
+        outputs=[output_box]
+    )
 
-    # Submit input
-    input_box.submit(run_langgraph, inputs=input_box, outputs=output_box)
-
-    # Sample question buttons
-    for sq in sample_questions:
-        btn = gr.Button(sq)
-        btn.click(run_langgraph, inputs=None, outputs=output_box, api_name=None)
+    # Also handle 'Enter' key press
+    input_box.submit(
+        fn=run_langgraph,
+        inputs=[input_box],
+        outputs=[output_box]
+    )
 
 
 demo.queue(default_concurrency_limit=16).launch(share=False,
