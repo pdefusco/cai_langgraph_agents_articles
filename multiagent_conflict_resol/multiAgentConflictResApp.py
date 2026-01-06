@@ -91,7 +91,7 @@ from tenacity import retry, wait_exponential, stop_after_attempt
 @retry(wait=wait_exponential(min=1, max=10), stop=stop_after_attempt(5))
 def get_embedding(text: str):
     resp = requests.post(
-        f"{ENDPOINT_BASE_URL}/v1/embeddings",
+        f"{ENDPOINT_BASE_URL}",
         headers={
             "Authorization": f"Bearer {CDP_TOKEN}",
             "Content-Type": "application/json",
