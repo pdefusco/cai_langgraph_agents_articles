@@ -241,12 +241,6 @@ def run_langgraph(query: str) -> str:
     return out.get("final_answer", "No answer generated.")
 
 
-out = compiled.invoke(inputs)
-print("Graph output:", out)
-
-out = compiled.invoke(inputs)
-print("Graph output:", out)
-
 # -------------------------
 # 8️⃣ Gradio UI
 # -------------------------
