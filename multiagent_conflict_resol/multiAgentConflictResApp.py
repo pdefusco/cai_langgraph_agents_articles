@@ -161,7 +161,7 @@ class GraphState(TypedDict):
 # 5️⃣ LangGraph nodes
 # -------------------------
 
-def spark_retrieval(state: GraphState):
+def spark_retrieval(**kwargs):
     query = state["query"]
     emb = get_passage_embedding(query)
     results = spark_col.query(query_embeddings=[emb], n_results=3)
@@ -171,7 +171,7 @@ def spark_retrieval(state: GraphState):
     return {"state": state}
 
 
-def hadoop_retrieval(state: GraphState):
+def hadoop_retrieval(**kwargs):
     query = state["query"]
     emb = get_passage_embedding(query)
     results = hadoop_col.query(query_embeddings=[emb], n_results=3)
@@ -181,7 +181,7 @@ def hadoop_retrieval(state: GraphState):
     return {"state": state}
 
 
-def synthesis_node(state: GraphState):
+def synthesis_node(**kwargs):
     spark_docs = [r["document"] for r in state.get("spark_results", [])]
     hadoop_docs = [r["document"] for r in state.get("hadoop_results", [])]
 
@@ -241,6 +241,12 @@ def run_langgraph(query: str) -> str:
     return out.get("final_answer", "No answer generated.")
 
 
+out = compiled.invoke(inputs)
+print("Graph output:", out)
+
+out = compiled.invoke(inputs)
+print("Graph output:", out)
+
 # -------------------------
 # 8️⃣ Gradio UI
 # -------------------------
@@ -253,23 +259,28 @@ sample_questions = [
 
 with gr.Blocks() as demo:
     gr.Markdown("## Big Data Multi-Agent QA")
+
+    # Sample questions dropdown
+    sample_dropdown = gr.Dropdown(
+        label="Or pick a sample question",
+        choices=sample_questions,
+        value=sample_questions[0]  # default value
+    )
+
     input_box = gr.Textbox(label="Enter your question here")
     output_box = gr.Markdown()
     submit_btn = gr.Button("Submit")
 
-    # CRITICAL: Ensure inputs=[input_box] only matches the 1 argument in run_langgraph
-    submit_btn.click(
-        fn=run_langgraph,
-        inputs=[input_box],
-        outputs=[output_box]
+    # When user selects a sample question, copy it into the input box
+    sample_dropdown.change(
+        fn=lambda x: x,
+        inputs=[sample_dropdown],
+        outputs=[input_box]
     )
 
-    # Also handle 'Enter' key press
-    input_box.submit(
-        fn=run_langgraph,
-        inputs=[input_box],
-        outputs=[output_box]
-    )
+    # Connect submit button and enter key to run_langgraph
+    submit_btn.click(fn=run_langgraph, inputs=[input_box], outputs=[output_box])
+    input_box.submit(fn=run_langgraph, inputs=[input_box], outputs=[output_box])
 
 demo.queue(default_concurrency_limit=16).launch(share=False,
             show_error=True,
