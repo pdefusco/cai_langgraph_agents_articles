@@ -161,8 +161,7 @@ class GraphState(TypedDict):
 # 5️⃣ LangGraph nodes
 # -------------------------
 
-def spark_retrieval(**kwargs):
-    state = kwargs.get("state")
+def spark_retrieval(state):
     query = state["query"]
     emb = get_passage_embedding(query)
     results = spark_col.query(query_embeddings=[emb], n_results=3)
@@ -172,8 +171,7 @@ def spark_retrieval(**kwargs):
     return {"state": state}
 
 
-def hadoop_retrieval(**kwargs):
-    state = kwargs.get("state")
+def hadoop_retrieval(state):
     query = state["query"]
     emb = get_passage_embedding(query)
     results = hadoop_col.query(query_embeddings=[emb], n_results=3)
@@ -183,8 +181,7 @@ def hadoop_retrieval(**kwargs):
     return {"state": state}
 
 
-def synthesis_node(**kwargs):
-    state = kwargs.get("state")
+def synthesis_node(state):
     spark_docs = [r["document"] for r in state.get("spark_results", [])]
     hadoop_docs = [r["document"] for r in state.get("hadoop_results", [])]
 
