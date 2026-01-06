@@ -46,6 +46,7 @@ from openai import OpenAI
 from langgraph.graph import StateGraph, MessagesState, START, END
 import gradio as gr
 import time
+import os
 
 # -------------------------
 # 1️⃣ Initialize clients
