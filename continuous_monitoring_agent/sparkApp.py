@@ -46,7 +46,7 @@ spark = (SparkSession
   .builder
   .appName("Test sparkmeasure instrumentation of Python/PySpark code")
   .config("spark.jars.packages","ch.cern.sparkmeasure:spark-measure_2.12:0.27")
-  .config("spark.kerberos.access.hadoopFileSystems","s3a://go01-demo/")
+  .config("spark.kerberos.access.hadoopFileSystems","s3a://pdf-jan-26-buk-7c0e831f/")
   .getOrCreate() )
 
 app_id = spark.sparkContext.applicationId
