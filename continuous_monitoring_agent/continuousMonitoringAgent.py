@@ -60,6 +60,19 @@ class AgentState(TypedDict):
 # Checkpoint helpers
 # ============================================================
 
+def create_checkpoint(spark):
+    spark.sql(f"""
+        CREATE TABLE IF NOT EXISTS {CHECKPOINT_TABLE} (
+            agent_name STRING,
+            agent_version STRING,
+            last_job_launch_time STRING,
+            last_spark_application_id STRING,
+            updated_at TIMESTAMP
+        )
+        PARTITIONED BY (agent_name, agent_version)
+        STORED AS PARQUET
+    """)
+
 def load_checkpoint(spark):
     df = spark.sql(f"""
         SELECT last_job_launch_time, last_spark_application_id
@@ -311,6 +324,7 @@ graph = builder.compile()
 # ============================================================
 
 def agent_loop():
+    create_checkpoint(spark)
     last_launch_time, last_app_id = load_checkpoint(spark)
 
     while True:
