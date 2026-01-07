@@ -98,23 +98,27 @@ def analyze_metrics(state: AgentState) -> AgentState:
     anomalies = []
 
     for row in state["metrics"]:
-        UI_STATE["last_app_id"] = row["spark_application_id"]
-        UI_STATE["last_job_launch_time"] = row["job_launch_time"]
+        UI_STATE["last_app_id"] = row["appId"]
+        UI_STATE["last_job_launch_time"] = row["launchTime"]
 
-        if row.get("shuffle_spill_mb", 0) > 1024:
+        if row.get("shuffleBytesWritten", 0) > 1024:
             anomalies.append({
-                "spark_application_id": row["spark_application_id"],
-                "metric": "shuffle_spill_mb",
-                "value": row["shuffle_spill_mb"],
+                "spark_application_id": row["appId"],
+                "metric": "shuffleBytesWritten",
+                "value": row["shuffleBytesWritten"],
                 "threshold": 1024,
                 "severity": "high",
             })
 
-        if row.get("gc_time_pct", 0) > 20:
+        jvmGCTime = row.get("jvmGCTime")
+        executorRunTime = row.get("executorRunTime")
+        gc_time_pct = (row["jvmGCTime"] / row["executorRunTime"]) * 100
+
+        if gc_time_pct > 20:
             anomalies.append({
-                "spark_application_id": row["spark_application_id"],
+                "spark_application_id": row["appId"],
                 "metric": "gc_time_pct",
-                "value": row["gc_time_pct"],
+                "value": gc_time_pct,
                 "threshold": 20,
                 "severity": "medium",
             })
@@ -145,13 +149,6 @@ import os
 MODEL_ID = os.environ["MODEL_ID"]
 ENDPOINT_BASE_URL = os.environ["ENDPOINT_BASE_URL"]
 CDP_TOKEN = os.environ["CDP_TOKEN"]
-
-#openai_client = OpenAI()  # Ensure OPENAI_API_KEY is set
-#embedding_model = OpenAIEmbeddings(
-#    model=MODEL_ID,
-#    base_url=ENDPOINT_BASE_URL,
-#    api_key=CDP_TOKEN
-#)
 
 client = chromadb.PersistentClient()
 
@@ -238,14 +235,14 @@ chroma_client = chromadb.PersistentClient()
 
 collection = chroma_client.get_collection("spark_hadoop_docs")
 
+ingest_demo_data()
+print("Spark docs:", len(spark_col.get()["documents"]))
+print("Hadoop docs:", len(hadoop_col.get()["documents"]))
+
 ISSUE_TO_QUERY = {
     "shuffle_spill_mb": "Spark shuffle spill tuning",
     "gc_time_pct": "Spark GC overhead tuning",
 }
-
-ingest_demo_data()
-print("Spark docs:", len(spark_col.get()["documents"]))
-print("Hadoop docs:", len(hadoop_col.get()["documents"]))
 
 # ============================================================
 # Node 2: RAG tuning
@@ -333,7 +330,7 @@ def agent_loop():
             SELECT *
             FROM {SPARK_METRICS_TABLE}
             {where_clause}
-            ORDER BY job_launch_time, spark_application_id
+            ORDER BY launchTime, appId
         """)
 
         if df.count() > 0:
@@ -341,9 +338,9 @@ def agent_loop():
             graph.invoke({"metrics": rows, "agent_version": AGENT_VERSION})
 
             last = rows[-1]
-            save_checkpoint(spark, last["job_launch_time"], last["spark_application_id"])
-            last_launch_time = last["job_launch_time"]
-            last_app_id = last["spark_application_id"]
+            save_checkpoint(spark, last["launchTime"], last["appId"])
+            last_launch_time = last["launchTime"]
+            last_app_id = last["appId"]
 
         time.sleep(POLL_INTERVAL_SECONDS)
 
