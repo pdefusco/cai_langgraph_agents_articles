@@ -248,7 +248,7 @@ def ingest_demo_data():
 
 chroma_client = chromadb.PersistentClient()
 
-collection = chroma_client.get_collection("spark_hadoop_docs")
+#spark_col = chroma_client.get_collection("spark_tuning")
 
 ingest_demo_data()
 print("Spark docs:", len(spark_col.get()["documents"]))
@@ -270,7 +270,7 @@ def rag_tuning(state: AgentState) -> AgentState:
         query = ISSUE_TO_QUERY.get(anomaly["metric"], "Spark performance tuning")
         emb = get_passage_embedding(query)
 
-        results = collection.query(
+        results = spark_col.query(
             query_embeddings=[emb],
             n_results=5,
         )
