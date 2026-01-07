@@ -254,9 +254,9 @@ def run_langgraph(query: str) -> str:
     return result["final_answer"]
 
 
-#ingest_demo_data()
-#print("Spark docs:", len(spark_col.get()["documents"]))
-#print("Hadoop docs:", len(hadoop_col.get()["documents"]))
+ingest_demo_data()
+print("Spark docs:", len(spark_col.get()["documents"]))
+print("Hadoop docs:", len(hadoop_col.get()["documents"]))
 
 #run_langgraph("How many default shuffle partitions does Spark have?")
 
