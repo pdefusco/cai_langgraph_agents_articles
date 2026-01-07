@@ -246,10 +246,6 @@ def ingest_demo_data():
         )
         time.sleep(0.5)
 
-chroma_client = chromadb.PersistentClient()
-
-#spark_col = chroma_client.get_collection("spark_tuning")
-
 ingest_demo_data()
 print("Spark docs:", len(spark_col.get()["documents"]))
 print("Hadoop docs:", len(hadoop_col.get()["documents"]))
@@ -384,7 +380,7 @@ with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
     tuning = gr.JSON(label="Tuning Recommendations")
     updated = gr.Textbox(label="Last Updated (UTC)")
 
-    timer = gr.Timer(interval=10)
+    timer = gr.Timer()
     timer.click(
         fn=get_ui_state,
         inputs=[],
