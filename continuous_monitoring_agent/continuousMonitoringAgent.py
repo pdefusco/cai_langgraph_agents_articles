@@ -152,8 +152,8 @@ spark_col = client.get_or_create_collection("spark_tuning")
 
 llm = ChatOpenAI(
     model=LLM_MODEL_ID,
-    base_url=LLM_ENDPOINT_BASE_URL
-    api_key=LLM_CDP_TOKEN
+    base_url=LLM_ENDPOINT_BASE_URL,
+    api_key=LLM_CDP_TOKEN,
     temperature=0.2,
 )
 
