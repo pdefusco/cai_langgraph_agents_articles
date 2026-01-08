@@ -388,7 +388,6 @@ def format_tuning(recs: list[dict]) -> str:
         )
     return "\n".join(lines)
 
-
 def agent_loop():
     create_checkpoint(spark)
     last_launch_time, _ = load_checkpoint(spark)
@@ -398,9 +397,8 @@ def agent_loop():
         if last_launch_time:
             where_clause = f"WHERE TIMESTAMP(ts) > TIMESTAMP('{last_launch_time}')"
 
-
         start = time.time()
-        # Aggregate metrics per application
+        # Aggregate metrics per Spark application
         df = spark.sql(f"""
             SELECT
                 appId,
@@ -415,53 +413,47 @@ def agent_loop():
             ORDER BY last_ts
         """)
 
-        print("ROWS FETCHED:", df.count())
+        row_count = df.count()
+        print(f"ROWS FETCHED: {row_count}")
         df.show(5, truncate=False)
-
         duration = time.time() - start
-        print(f"Query returned {df.count()} rows in {duration:.2f}s")
+        print(f"Query returned {row_count} rows in {duration:.2f}s")
 
-        rows = [r.asDict() for r in df.collect()] if df.count() > 0 else []
+        # Convert all rows to dicts
+        rows = [r.asDict() for r in df.collect()] if row_count > 0 else []
 
         if rows:
-            # Take the latest application
+            # Take the latest application for checkpointing and graph invoke
             latest_app_row = rows[-1]
-
             latest_app_id = latest_app_row["appId"]
             last_ts = latest_app_row["last_ts"]
-            print("LAST PROCESSED:", last_launch_time, last_app_id)
 
-            # Pass aggregated row to LangGraph
+            print("LAST PROCESSED:", last_launch_time, latest_app_id)
+
+            # Optionally: pass all rows to graph.invoke if you want anomalies per app
             result = graph.invoke({
-                "metrics": [latest_app_row],  # single row per app
+                "metrics": rows,  # all aggregated rows
                 "agent_version": AGENT_VERSION,
             })
             print("GRAPH OUTPUT:", result)
 
-            # Save checkpoint
+            # Save checkpoint for the latest processed app
             save_checkpoint(spark, last_ts, latest_app_id)
         else:
             latest_app_id = "N/A"
             last_ts = last_launch_time or "N/A"
             result = {"anomalies": [], "tuning_recommendations": []}
 
+        # Update UI_STATE with all aggregated metrics and markdowns
         with UI_STATE_LOCK:
             UI_STATE["last_app_id"] = str(latest_app_id)
             UI_STATE["last_job_launch_time"] = str(last_ts)
             UI_STATE["anomaly_md"] = format_anomalies(result.get("anomalies", []))
             UI_STATE["tuning_md"] = format_tuning(result.get("tuning_recommendations", []))
-
-            # Maintain a list of all aggregated app metrics
-            if "aggregated_metrics" not in UI_STATE:
-                UI_STATE["aggregated_metrics"] = []
-
-            # Append new app row only if it's not already in the list
-            existing_ids = {r["appId"] for r in UI_STATE["aggregated_metrics"]}
-            if latest_app_id not in existing_ids:
-                UI_STATE["aggregated_metrics"].append(latest_app_row)
-
             UI_STATE["last_updated"] = datetime.utcnow().isoformat()
 
+            # Keep all aggregated metrics as a Pandas DataFrame
+            UI_STATE["aggregated_metrics_df"] = df.toPandas() if row_count > 0 else None
 
         time.sleep(POLL_INTERVAL_SECONDS)
 
@@ -474,23 +466,20 @@ def get_ui_state():
     with UI_STATE_LOCK:
         s = deepcopy(UI_STATE)
 
-    # Convert the aggregated metrics to a pandas DataFrame for Gradio table
-    import pandas as pd
-    if "aggregated_metrics" in s and s["aggregated_metrics"]:
-        df = pd.DataFrame(s["aggregated_metrics"])
+    # Convert aggregated metrics dataframe to HTML for display
+    metrics_df = s.get("aggregated_metrics_df")
+    if metrics_df is not None:
+        metrics_html = metrics_df.to_html(index=False)
     else:
-        df = pd.DataFrame(columns=[
-            "appId", "first_ts", "last_ts", "shuffleBytesWritten",
-            "executorRunTime", "jvmGCTime"
-        ])
+        metrics_html = "No Spark metrics available"
 
     return (
-        str(s.get("last_app_id", "")),
-        str(s.get("last_job_launch_time", "")),
+        metrics_html,
         s.get("anomaly_md", "✅ No anomalies detected"),
         s.get("tuning_md", "ℹ️ No tuning recommendations"),
-        str(s.get("last_updated", "")),
-        df
+        s.get("last_updated", ""),
+        s.get("last_app_id", ""),
+        s.get("last_job_launch_time", ""),
     )
 
 
@@ -516,28 +505,21 @@ with UI_STATE_LOCK:
 with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
     gr.Markdown("## 🔍 Spark Performance Monitoring Agent")
 
-    last_app = gr.Textbox(label="Last Spark Application ID")
-    last_launch = gr.Textbox(label="Last Job Launch Time")
-
+    metrics_table = gr.HTML(label="Spark Metrics by App")
     anomalies = gr.Markdown(label="Detected Anomalies")
     tuning = gr.Markdown(label="Tuning Recommendations")
     updated = gr.Textbox(label="Last Updated (UTC)")
-
-    # Table for all aggregated metrics
-    metrics_table = gr.DataFrame(
-        headers=["appId", "first_ts", "last_ts", "shuffleBytesWritten", "executorRunTime", "jvmGCTime"],
-        label="Aggregated Spark Metrics",
-        datatype=["str","str","str","number","number","number"]
-    )
+    last_app = gr.Textbox(label="Last Spark Application ID")
+    last_launch = gr.Textbox(label="Last Job Launch Time")
 
     timer = gr.Timer(value=10, active=True)
     timer.tick(
         fn=get_ui_state,
         inputs=[],
-        outputs=[last_app, last_launch, anomalies, tuning, updated, metrics_table],
+        outputs=[metrics_table, anomalies, tuning, updated, last_app, last_launch],
     )
 
-    demo.load(start_agent)
+    demo.load(fn=start_agent)
     demo.load(fn=get_ui_state, outputs=[last_app, last_launch, anomalies, tuning, updated])
 
 # ============================================================
