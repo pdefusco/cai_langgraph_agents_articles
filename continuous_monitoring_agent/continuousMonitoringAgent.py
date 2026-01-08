@@ -176,7 +176,7 @@ llmClient = OpenAI(
 def get_passage_embedding(text: str):
     return llmClient.embeddings.create(
         input=text,
-        model=MODEL_ID,
+        model=EMBEDDING_MODEL_ID,
         extra_body={"input_type": "passage"},
     ).data[0].embedding
 
