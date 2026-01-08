@@ -399,12 +399,13 @@ def agent_loop():
 
 def get_ui_state():
     return (
-        UI_STATE["last_app_id"],
-        UI_STATE["last_job_launch_time"],
-        UI_STATE["anomalies"],
-        UI_STATE["tuning_recommendations"],
-        UI_STATE["last_updated"],
+        str(UI_STATE["last_app_id"] or ""),
+        str(UI_STATE["last_job_launch_time"] or ""),
+        list(UI_STATE["anomalies"]),
+        list(UI_STATE["tuning_recommendations"]),
+        str(UI_STATE["last_updated"] or ""),
     )
+
 
 with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
     gr.Markdown("## 🔍 Spark Performance Monitoring Agent")
