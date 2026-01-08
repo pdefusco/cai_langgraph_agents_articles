@@ -65,6 +65,7 @@ spark = (
     .appName("spark-performance-agent-ui")
     .config("spark.executor.cores", 2)
     .config("spark.execuctor.memory", "4g")
+    .config("spark.kerberos.access.hadoopFileSystems","s3a://pdf-jan-26-buk-7c0e831f/")
     .getOrCreate()
 )
 
