@@ -380,8 +380,9 @@ with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
     tuning = gr.JSON(label="Tuning Recommendations")
     updated = gr.Textbox(label="Last Updated (UTC)")
 
-    timer = gr.Timer()
-    timer.click(
+    timer = gr.Timer(
+        value=None,
+        every=10,
         fn=get_ui_state,
         inputs=[],
         outputs=[last_app, last_launch, anomalies, tuning, updated]
