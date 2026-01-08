@@ -73,7 +73,6 @@ AGENT_VERSION = "v1"
 POLL_INTERVAL_SECONDS = 30
 
 SPARK_METRICS_TABLE = "default.spark_task_metrics"
-CHECKPOINT_TABLE = "agent_checkpoints"
 
 # ============================================================
 # Shared UI State
@@ -83,16 +82,12 @@ from copy import deepcopy
 from threading import Lock
 
 class UIState(TypedDict):
-    last_app_id: Optional[str]
-    last_job_launch_time: Optional[str]
     anomalies: List[dict]
     tuning_recommendations: List[dict]
     last_updated: Optional[str]
 
 # ======= Initialize UI_STATE =======
 UI_STATE = {
-    "last_app_id": "Waiting for Spark metrics...",
-    "last_job_launch_time": "N/A",
     "anomaly_md": "No anomalies detected yet.",
     "tuning_md": "No tuning recommendations yet.",
     "last_updated": "N/A",
@@ -109,51 +104,6 @@ class AgentState(TypedDict):
     anomalies: Optional[List[dict]]
     tuning_recommendations: Optional[List[dict]]
     agent_version: str
-
-# ============================================================
-# Checkpoint helpers
-# ============================================================
-
-def create_checkpoint(spark):
-    spark.sql(f"""
-        CREATE TABLE IF NOT EXISTS {CHECKPOINT_TABLE} (
-            agent_name STRING,
-            agent_version STRING,
-            last_job_launch_time STRING,
-            last_spark_application_id STRING,
-            updated_at TIMESTAMP
-        )
-        PARTITIONED BY (agent_name, agent_version)
-        STORED AS PARQUET
-    """)
-
-def load_checkpoint(spark):
-    df = spark.sql(f"""
-        SELECT last_job_launch_time, last_spark_application_id
-        FROM {CHECKPOINT_TABLE}
-        WHERE agent_name = '{AGENT_NAME}'
-          AND agent_version = '{AGENT_VERSION}'
-        ORDER BY updated_at DESC
-        LIMIT 1
-    """)
-
-    if df.count() == 0:
-        return None, None
-
-    r = df.collect()[0]
-    return r.last_job_launch_time, r.last_spark_application_id
-
-
-def save_checkpoint(spark, launch_time, app_id):
-    spark.sql(f"""
-        INSERT INTO {CHECKPOINT_TABLE}
-        PARTITION (agent_name='{AGENT_NAME}', agent_version='{AGENT_VERSION}')
-        VALUES (
-            '{launch_time}',
-            '{app_id}',
-            TIMESTAMP('{datetime.utcnow()}')
-        )
-    """)
 
 # ============================================================
 # Node 1: Deterministic anomaly detection
@@ -389,20 +339,11 @@ def format_tuning(recs: list[dict]) -> str:
     return "\n".join(lines)
 
 def agent_loop():
-    create_checkpoint(spark)
-    last_launch_time, _ = load_checkpoint(spark)
-
     while True:
-        where_clause = ""
-        if last_launch_time:
-            where_clause = f"WHERE TIMESTAMP(ts) > TIMESTAMP('{last_launch_time}')"
-
-        print("LAST LAUNCH TIME FROM CHECKPOINT TABLE: ", last_launch_time)
-        print("SELECT TIMESTAMP TS FROM METRICS TABLE")
-        spark.sql(f"""SELECT TIMESTAMP(ts) FROM {SPARK_METRICS_TABLE}""").show()
-
+        print("Polling Spark metrics table for all applications...")
         start = time.time()
-        # Aggregate metrics per Spark application
+
+        # Aggregate metrics per Spark application (all rows)
         df = spark.sql(f"""
             SELECT
                 appId,
@@ -412,7 +353,6 @@ def agent_loop():
                 SUM(executorRunTime) AS executorRunTime,
                 SUM(jvmGCTime) AS jvmGCTime
             FROM {SPARK_METRICS_TABLE}
-            {where_clause}
             GROUP BY appId
             ORDER BY last_ts
         """)
@@ -427,31 +367,22 @@ def agent_loop():
         rows = [r.asDict() for r in df.collect()] if row_count > 0 else []
 
         if rows:
-            # Take the latest application for checkpointing and graph invoke
-            latest_app_row = rows[-1]
-            latest_app_id = latest_app_row["appId"]
-            last_ts = latest_app_row["last_ts"]
-
-            print("LAST PROCESSED:", last_launch_time, latest_app_id)
-
-            # Optionally: pass all rows to graph.invoke if you want anomalies per app
+            # Use all rows for anomaly detection and tuning
             result = graph.invoke({
                 "metrics": rows,  # all aggregated rows
                 "agent_version": AGENT_VERSION,
             })
-            print("GRAPH OUTPUT:", result)
 
-            # Save checkpoint for the latest processed app
-            save_checkpoint(spark, last_ts, latest_app_id)
+            latest_app_row = rows[-1]
+            latest_app_id = latest_app_row["appId"]
+            last_ts = latest_app_row["last_ts"]
         else:
             latest_app_id = "N/A"
-            last_ts = last_launch_time or "N/A"
+            last_ts = "N/A"
             result = {"anomalies": [], "tuning_recommendations": []}
 
         # Update UI_STATE with all aggregated metrics and markdowns
         with UI_STATE_LOCK:
-            UI_STATE["last_app_id"] = str(latest_app_id)
-            UI_STATE["last_job_launch_time"] = str(last_ts)
             UI_STATE["anomaly_md"] = format_anomalies(result.get("anomalies", []))
             UI_STATE["tuning_md"] = format_tuning(result.get("tuning_recommendations", []))
             UI_STATE["last_updated"] = datetime.utcnow().isoformat()
@@ -482,8 +413,6 @@ def get_ui_state():
         s.get("anomaly_md", "✅ No anomalies detected"),
         s.get("tuning_md", "ℹ️ No tuning recommendations"),
         s.get("last_updated", ""),
-        s.get("last_app_id", ""),
-        s.get("last_job_launch_time", ""),
     )
 
 
@@ -496,15 +425,11 @@ def start_agent():
     threading.Thread(target=agent_loop, daemon=True).start()
     # No return needed; UI updates are handled by the timer
 
-
 # Initialize UI_STATE placeholders (optional but recommended)
 with UI_STATE_LOCK:
-    UI_STATE.setdefault("last_app_id", "Waiting for Spark metrics...")
-    UI_STATE.setdefault("last_job_launch_time", "")
     UI_STATE.setdefault("anomaly_md", "Waiting for anomalies...")
     UI_STATE.setdefault("tuning_md", "Waiting for tuning recommendations...")
     UI_STATE.setdefault("last_updated", "")
-
 
 with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
     gr.Markdown("## 🔍 Spark Performance Monitoring Agent")
@@ -513,18 +438,16 @@ with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
     anomalies = gr.Markdown(label="Detected Anomalies")
     tuning = gr.Markdown(label="Tuning Recommendations")
     updated = gr.Textbox(label="Last Updated (UTC)")
-    last_app = gr.Textbox(label="Last Spark Application ID")
-    last_launch = gr.Textbox(label="Last Job Launch Time")
 
     timer = gr.Timer(value=10, active=True)
     timer.tick(
         fn=get_ui_state,
         inputs=[],
-        outputs=[metrics_table, anomalies, tuning, updated, last_app, last_launch],
+        outputs=[metrics_table, anomalies, tuning, updated],
     )
 
     demo.load(fn=start_agent)
-    #demo.load(fn=get_ui_state, outputs=[last_app, last_launch, anomalies, tuning, updated, metrics_table])
+    #demo.load(fn=get_ui_state, outputs=[anomalies, tuning, updated, metrics_table])
 
 # ============================================================
 # Main
