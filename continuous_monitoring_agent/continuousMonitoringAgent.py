@@ -400,11 +400,17 @@ def agent_loop():
                 MAX(ts) AS last_ts,
                 SUM(shuffleBytesWritten) AS shuffleBytesWritten,
                 SUM(executorRunTime) AS executorRunTime,
-                SUM(jvmGCTime) AS jvmGCTime
+                SUM(jvmGCTime) AS jvmGCTime,
+                SUM(memoryBytesSpilled) AS memoryBytesSpilled,
+                SUM(diskBytesSpilled) AS diskBytesSpilled,
+                SUM(resultSize) AS resultSize,
+                SUM(inputBytes) AS inputBytes,
+                SUM(inputRecords) AS inputRecords
             FROM {SPARK_METRICS_TABLE}
             GROUP BY appId
             ORDER BY last_ts
         """)
+
 
         rows = [r.asDict() for r in df.collect()] if df.count() > 0 else []
 
@@ -433,26 +439,48 @@ def get_ui_state():
         s = deepcopy(UI_STATE)
 
     metrics_df = s.get("aggregated_metrics_df")
-    metrics_html = metrics_df.to_html(index=False) if metrics_df is not None else "No Spark metrics"
+    if metrics_df is not None:
+        # Display at least 5 more fields and wrap long text
+        metrics_html = metrics_df.to_html(
+            index=False,
+            classes="metrics-table",
+            border=0,
+            justify="center",
+        )
+        # Wrap in a div with scroll for nicer rendering
+        metrics_html = f"""
+        <div style='max-height:400px; overflow:auto; margin-bottom:20px;'>
+            {metrics_html}
+        </div>
+        """
+    else:
+        metrics_html = "<div>No Spark metrics</div>"
+
+    # Add spacing between sections
+    anomaly_md = "<br><br>" + s["anomaly_md"] if s.get("anomaly_md") else ""
+    tuning_md = "<br><br>" + s["tuning_md"] if s.get("tuning_md") else ""
 
     return (
         metrics_html,
-        s["anomaly_md"],
-        s["tuning_md"],
-        s["last_updated"],
+        anomaly_md,
+        tuning_md,
+        s.get("last_updated", ""),
     )
+
 
 def start_agent():
     threading.Thread(target=agent_loop, daemon=True).start()
 
+
 with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
     gr.Markdown("## 🔍 Spark Performance Monitoring Agent")
 
-    metrics_table = gr.HTML(label="Spark Metrics by App")
-    anomalies = gr.Markdown(label="Detected Anomalies")
-    tuning = gr.Markdown(label="Tuning Recommendations")
-    updated = gr.Textbox(label="Last Updated (UTC)")
+    metrics_table = gr.HTML(label="📊 Spark Metrics by App")
+    anomalies = gr.Markdown(label="🚨 Detected Anomalies")
+    tuning = gr.Markdown(label="🛠️ Tuning Recommendations")
+    updated = gr.Textbox(label="Last Updated (UTC)", interactive=False)
 
+    # Update every 10 seconds
     timer = gr.Timer(value=10, active=True)
     timer.tick(
         fn=get_ui_state,
@@ -460,7 +488,28 @@ with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
         outputs=[metrics_table, anomalies, tuning, updated],
     )
 
+    # Start the agent when the UI loads
     demo.load(fn=start_agent)
+
+    # Optional: add CSS to make tables nicer
+    demo.load(
+        fn=lambda: """
+        <style>
+        .metrics-table th, .metrics-table td {
+            padding: 5px 10px;
+            text-align: center;
+            white-space: normal;
+        }
+        .metrics-table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        </style>
+        """,
+        inputs=[],
+        outputs=[],
+    )
+
 
 if __name__ == "__main__":
     demo.launch(
