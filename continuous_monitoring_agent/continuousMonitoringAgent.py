@@ -89,12 +89,12 @@ class UIState(TypedDict):
     tuning_recommendations: List[dict]
     last_updated: Optional[str]
 
-UI_STATE: UIState = {
-    "last_app_id": None,
-    "last_job_launch_time": None,
-    "anomalies": [],
-    "tuning_recommendations": [],
-    "last_updated": None,
+UI_STATE = {
+    "last_app_id": "",
+    "last_job_launch_time": "",
+    "anomaly_md": "",
+    "tuning_md": "",
+    "last_updated": "",
 }
 
 UI_STATE_LOCK = Lock()
@@ -180,19 +180,12 @@ def analyze_metrics(state: AgentState) -> AgentState:
                 anomalies.append({
                     "spark_application_id": str(row["appId"]),
                     "metric": "gc_time_pct",
-                    "value": float(gc_pct),
+                    "value": gc_pct,
                     "threshold": 20,
                     "severity": "medium",
                 })
 
-    with UI_STATE_LOCK:
-        UI_STATE["last_app_id"] = row["appId"]
-        UI_STATE["last_job_launch_time"] = row["launchTime"]
-        UI_STATE["anomalies"] = anomalies
-        UI_STATE["last_updated"] = datetime.utcnow().isoformat()
-
     return {"anomalies": anomalies}
-
 
 # ============================================================
 # Chroma setup
@@ -332,10 +325,6 @@ def rag_tuning(state: AgentState) -> AgentState:
             "recommended_spark_submit": [str(x) for x in spark_opts],
         })
 
-    with UI_STATE_LOCK:
-        UI_STATE["tuning_recommendations"] = tuning_recommendations
-        UI_STATE["last_updated"] = datetime.utcnow().isoformat()
-
     return {"tuning_recommendations": tuning_recommendations}
 
 
@@ -369,11 +358,43 @@ graph = builder.compile()
 # Polling loop (background thread)
 # ============================================================
 
+def format_anomalies(anomalies: list[dict]) -> str:
+    if not anomalies:
+        return "✅ No anomalies detected."
+
+    lines = ["### 🚨 Detected Anomalies"]
+    for a in anomalies:
+        lines.append(
+            f"- **App** `{a['spark_application_id']}` | "
+            f"**Metric** `{a['metric']}` | "
+            f"**Value** `{a['value']:.2f}` | "
+            f"**Severity** `{a['severity']}`"
+        )
+    return "\n".join(lines)
+
+
+def format_tuning(recs: list[dict]) -> str:
+    if not recs:
+        return "ℹ️ No tuning recommendations."
+
+    lines = ["### 🛠️ Tuning Recommendations"]
+    for r in recs:
+        opts = ", ".join(r["recommended_spark_submit"]) or "None"
+        lines.append(
+            f"- **App** `{r['spark_application_id']}` | "
+            f"**Issue** `{r['issue']}`\n"
+            f"  - Suggested flags: `{opts}`"
+        )
+    return "\n".join(lines)
+
+
 def agent_loop():
+    # Ensure the checkpoint table exists and load last run info
     create_checkpoint(spark)
     last_launch_time, last_app_id = load_checkpoint(spark)
 
     while True:
+        # Build WHERE clause to only fetch new metrics
         where_clause = ""
         if last_launch_time:
             where_clause = f"""
@@ -386,6 +407,7 @@ def agent_loop():
             )
             """
 
+        # Query Spark metrics
         df = spark.sql(f"""
             SELECT *
             FROM {SPARK_METRICS_TABLE}
@@ -394,30 +416,54 @@ def agent_loop():
         """)
 
         if df.count() > 0:
+            # Convert to dicts for LangGraph
             rows = [r.asDict() for r in df.collect()]
-            graph.invoke({"metrics": rows, "agent_version": AGENT_VERSION})
 
+            # Invoke LangGraph nodes (pure computation)
+            result = graph.invoke({
+                "metrics": rows,
+                "agent_version": AGENT_VERSION,
+            })
+
+            # Take the last row for checkpointing
             last = rows[-1]
+
+            # Save checkpoint in Spark
             save_checkpoint(spark, last["ts"], last["appId"])
             last_launch_time = last["ts"]
             last_app_id = last["appId"]
 
+            # Update UI_STATE in a single, locked block
+            with UI_STATE_LOCK:
+                UI_STATE["last_app_id"] = str(last["appId"])
+                UI_STATE["last_job_launch_time"] = str(last["ts"])
+                UI_STATE["anomaly_md"] = format_anomalies(
+                    result.get("anomalies", [])
+                )
+                UI_STATE["tuning_md"] = format_tuning(
+                    result.get("tuning_recommendations", [])
+                )
+                UI_STATE["last_updated"] = datetime.utcnow().isoformat()
+
+        # Sleep until next poll
         time.sleep(POLL_INTERVAL_SECONDS)
+
 
 # ============================================================
 # Gradio UI
 # ============================================================
 
 def get_ui_state():
-    print("TIMER TICK FIRED", flush=True)
-    return (
-        "APP_ID_TEST",
-        "LAUNCH_TIME_TEST",
-        "ANOMALY_TEST",
-        "TUNING_TEST",
-        "UPDATED_TEST",
-    )
+    with UI_STATE_LOCK:
+        s = deepcopy(UI_STATE)
 
+    return (
+        s["last_app_id"],
+        s["last_job_launch_time"],
+        s["anomaly_md"],
+        s["tuning_md"],
+        s["last_updated"],
+    )
 
 def start_agent():
     threading.Thread(target=agent_loop, daemon=True).start()
@@ -429,8 +475,8 @@ with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
         last_app = gr.Textbox(label="Last Spark Application ID")
         last_launch = gr.Textbox(label="Last Job Launch Time")
 
-    anomalies = gr.Textbox(label="Detected Anomalies")
-    tuning = gr.Textbox(label="Tuning Recommendations")
+    anomalies = gr.Markdown(label="Detected Anomalies")
+    tuning = gr.Markdown(label="Tuning Recommendations")
     updated = gr.Textbox(label="Last Updated (UTC)")
 
     timer = gr.Timer(value=10, active=True)
