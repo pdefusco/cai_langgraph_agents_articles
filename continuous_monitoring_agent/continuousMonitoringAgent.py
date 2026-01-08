@@ -143,6 +143,33 @@ def analyze_metrics(state: AgentState) -> AgentState:
 # ============================================================
 # Chroma + LLM setup
 # ============================================================
+import re
+import json
+
+def extract_json(text: str):
+    if not text:
+        raise ValueError("Empty LLM response")
+
+    # Remove code fences
+    text = text.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?", "", text)
+        text = re.sub(r"```$", "", text)
+        text = text.strip()
+
+    # Extract first JSON array or object
+    match = re.search(r"(\[.*?\]|\{.*?\})", text, re.DOTALL)
+    if not match:
+        raise ValueError("No JSON found in LLM output")
+
+    json_text = match.group(1)
+
+    # Remove JS-style comments
+    json_text = re.sub(r"//.*", "", json_text)
+
+    return json.loads(json_text)
+
+
 LLM_MODEL_ID = os.environ["LLM_MODEL_ID"]
 LLM_ENDPOINT_BASE_URL = os.environ["LLM_ENDPOINT_BASE_URL"]
 LLM_CDP_TOKEN = os.environ["LLM_CDP_TOKEN"]
@@ -240,7 +267,7 @@ Return ONLY valid JSON in this format:
     response = llm.invoke([system, human])
     raw = response.content
     print("LLM RAW OUTPUT:\n", raw)
-    return json.loads(response.content)
+    return return extract_json(response.content)
 
 # ============================================================
 # Node 2: RAG tuning (LLM-driven)
