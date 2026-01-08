@@ -398,6 +398,8 @@ def agent_loop():
         if last_launch_time:
             where_clause = f"WHERE TIMESTAMP(ts) > TIMESTAMP('{last_launch_time}')"
 
+
+        start = time.time()
         # Aggregate metrics per application
         df = spark.sql(f"""
             SELECT
@@ -413,6 +415,12 @@ def agent_loop():
             ORDER BY last_ts
         """)
 
+        print("ROWS FETCHED:", df.count())
+        df.show(5, truncate=False)
+
+        duration = time.time() - start
+        print(f"Query returned {df.count()} rows in {duration:.2f}s")
+
         rows = [r.asDict() for r in df.collect()] if df.count() > 0 else []
 
         if rows:
@@ -421,6 +429,7 @@ def agent_loop():
 
             latest_app_id = latest_app_row["appId"]
             last_ts = latest_app_row["last_ts"]
+            print("LAST PROCESSED:", last_launch_time, last_app_id)
 
             # Pass aggregated row to LangGraph
             result = graph.invoke({
