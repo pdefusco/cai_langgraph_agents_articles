@@ -465,28 +465,51 @@ def get_ui_state():
         s["last_updated"],
     )
 
+# ============================================================
+# Gradio UI
+# ============================================================
+
 def start_agent():
+    """Starts the background agent loop in a daemon thread."""
     threading.Thread(target=agent_loop, daemon=True).start()
+    # No return needed; UI updates are handled by the timer
+
+
+# Initialize UI_STATE placeholders (optional but recommended)
+with UI_STATE_LOCK:
+    UI_STATE.setdefault("last_app_id", "Waiting for Spark metrics...")
+    UI_STATE.setdefault("last_job_launch_time", "")
+    UI_STATE.setdefault("anomaly_md", "Waiting for anomalies...")
+    UI_STATE.setdefault("tuning_md", "Waiting for tuning recommendations...")
+    UI_STATE.setdefault("last_updated", "")
+
 
 with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
     gr.Markdown("## 🔍 Spark Performance Monitoring Agent")
 
+    # Row for basic Spark app info
     with gr.Row():
-        last_app = gr.Textbox(label="Last Spark Application ID")
-        last_launch = gr.Textbox(label="Last Job Launch Time")
+        last_app = gr.Textbox(label="Last Spark Application ID", interactive=False)
+        last_launch = gr.Textbox(label="Last Job Launch Time", interactive=False)
 
+    # Markdown sections for anomalies and tuning
     anomalies = gr.Markdown(label="Detected Anomalies")
     tuning = gr.Markdown(label="Tuning Recommendations")
-    updated = gr.Textbox(label="Last Updated (UTC)")
+    updated = gr.Textbox(label="Last Updated (UTC)", interactive=False)
 
+    # Timer for live updates
     timer = gr.Timer(value=10, active=True)
     timer.tick(
-        fn=get_ui_state,
+        fn=get_ui_state,  # Returns the latest UI_STATE
         inputs=[],
         outputs=[last_app, last_launch, anomalies, tuning, updated],
     )
 
-    demo.load(start_agent)
+    # Start agent when page loads
+    # Also optionally trigger an immediate first UI update
+    demo.load(fn=start_agent)
+    demo.load(fn=get_ui_state, outputs=[last_app, last_launch, anomalies, tuning, updated])
+
 
 
 # ============================================================
