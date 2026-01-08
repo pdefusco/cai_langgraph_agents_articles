@@ -430,7 +430,7 @@ with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
 
 if __name__ == "__main__":
     threading.Thread(target=agent_loop, daemon=True).start()
-    demo.queue(default_concurrency_limit=16).launch(share=False,
+    demo.launch(share=False,
                 show_error=True,
                 server_name='127.0.0.1',
                 server_port=int(os.getenv('CDSW_APP_PORT')))
