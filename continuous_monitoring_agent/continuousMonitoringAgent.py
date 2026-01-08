@@ -164,12 +164,12 @@ def analyze_metrics(state: AgentState) -> AgentState:
 
     for row in state["metrics"]:
         print("ROW SANITY CHECK: ", row)
-        if row.get("shuffleBytesWritten", 0) > 1024:
+        if row.get("shuffleBytesWritten", 0) > 100:
             anomalies.append({
                 "spark_application_id": str(row["appId"]),
                 "metric": "shuffleBytesWritten",
                 "value": float(row["shuffleBytesWritten"]),
-                "threshold": 1024,
+                "threshold": 100,
                 "severity": "high",
             })
 
@@ -520,7 +520,7 @@ with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
     )
 
     demo.load(fn=start_agent)
-    demo.load(fn=get_ui_state, outputs=[last_app, last_launch, anomalies, tuning, updated])
+    #demo.load(fn=get_ui_state, outputs=[last_app, last_launch, anomalies, tuning, updated, metrics_table])
 
 # ============================================================
 # Main
