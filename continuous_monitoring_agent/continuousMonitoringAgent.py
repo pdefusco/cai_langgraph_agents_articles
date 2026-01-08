@@ -31,7 +31,7 @@ spark = (
 
 AGENT_NAME = "spark_perf_agent"
 AGENT_VERSION = "v1"
-POLL_INTERVAL_SECONDS = 300
+POLL_INTERVAL_SECONDS = 30
 
 SPARK_METRICS_TABLE = "default.spark_task_metrics"
 CHECKPOINT_TABLE = "agent_checkpoints"
