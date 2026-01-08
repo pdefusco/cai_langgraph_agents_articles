@@ -388,52 +388,61 @@ def format_tuning(recs: list[dict]) -> str:
 
 
 def agent_loop():
-    # Ensure the checkpoint table exists and load last run info
     create_checkpoint(spark)
     last_launch_time, _ = load_checkpoint(spark)
 
     while True:
-        # Only fetch rows newer than last processed timestamp
         where_clause = ""
         if last_launch_time:
             where_clause = f"WHERE TIMESTAMP(ts) > TIMESTAMP('{last_launch_time}')"
 
-        # Query Spark metrics
+        # Aggregate metrics per application
         df = spark.sql(f"""
-            SELECT *
+            SELECT
+                appId,
+                MIN(ts) AS first_ts,
+                MAX(ts) AS last_ts,
+                SUM(shuffleBytesWritten) AS shuffleBytesWritten,
+                SUM(executorRunTime) AS executorRunTime,
+                SUM(jvmGCTime) AS jvmGCTime
             FROM {SPARK_METRICS_TABLE}
             {where_clause}
-            ORDER BY ts
+            GROUP BY appId
+            ORDER BY last_ts
         """)
 
         rows = [r.asDict() for r in df.collect()] if df.count() > 0 else []
 
-        # Invoke LangGraph nodes (pure computation)
-        result = graph.invoke({
-            "metrics": rows,
-            "agent_version": AGENT_VERSION,
-        })
-        print("GRAPH OUTPUT:", result)
-
-        # Determine the latest timestamp for checkpoint / UI
         if rows:
-            last = rows[-1]
-            last_launch_time = last["ts"]
-            # Persist checkpoint
-            save_checkpoint(spark, last["ts"], last["appId"])
-        else:
-            last = {"ts": last_launch_time, "appId": "N/A"}
+            # Take the latest application
+            latest_app_row = rows[-1]
 
-        # Update UI_STATE every loop iteration
+            latest_app_id = latest_app_row["appId"]
+            last_ts = latest_app_row["last_ts"]
+
+            # Pass aggregated row to LangGraph
+            result = graph.invoke({
+                "metrics": [latest_app_row],  # single row per app
+                "agent_version": AGENT_VERSION,
+            })
+            print("GRAPH OUTPUT:", result)
+
+            # Save checkpoint
+            save_checkpoint(spark, last_ts, latest_app_id)
+        else:
+            latest_app_id = "N/A"
+            last_ts = last_launch_time or "N/A"
+            result = {"anomalies": [], "tuning_recommendations": []}
+
+        # Update UI_STATE
         with UI_STATE_LOCK:
-            UI_STATE["last_app_id"] = str(last.get("appId", "N/A"))
-            UI_STATE["last_job_launch_time"] = str(last.get("ts", "N/A"))
+            UI_STATE["last_app_id"] = str(latest_app_id)
+            UI_STATE["last_job_launch_time"] = str(last_ts)
             UI_STATE["anomaly_md"] = format_anomalies(result.get("anomalies", []))
             UI_STATE["tuning_md"] = format_tuning(result.get("tuning_recommendations", []))
             UI_STATE["last_updated"] = datetime.utcnow().isoformat()
 
         time.sleep(POLL_INTERVAL_SECONDS)
-
 
 
 # ============================================================
