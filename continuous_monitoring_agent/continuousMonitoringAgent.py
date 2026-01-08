@@ -267,7 +267,7 @@ Return ONLY valid JSON in this format:
     response = llm.invoke([system, human])
     raw = response.content
     print("LLM RAW OUTPUT:\n", raw)
-    return return extract_json(response.content)
+    return extract_json(response.content)
 
 # ============================================================
 # Node 2: RAG tuning (LLM-driven)
