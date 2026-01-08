@@ -116,12 +116,12 @@ def analyze_metrics(state: AgentState) -> AgentState:
     anomalies = []
 
     for row in state["metrics"]:
-        if row.get("shuffleBytesWritten", 0) > 100:
+        if row.get("shuffleBytesWritten", 0) > 1024:
             anomalies.append({
                 "spark_application_id": str(row["appId"]),
                 "metric": "shuffleBytesWritten",
                 "value": float(row["shuffleBytesWritten"]),
-                "threshold": 100,
+                "threshold": 1024,
                 "severity": "high",
             })
 
