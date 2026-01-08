@@ -165,9 +165,9 @@ def analyze_metrics(state: AgentState) -> AgentState:
     for row in state["metrics"]:
         if row.get("shuffleBytesWritten", 0) > 1024:
             anomalies.append({
-                "spark_application_id": row["appId"],
+                "spark_application_id": str(row["appId"]),
                 "metric": "shuffleBytesWritten",
-                "value": int(row["shuffleBytesWritten"]),
+                "value": float(row["shuffleBytesWritten"]),
                 "threshold": 1024,
                 "severity": "high",
             })
@@ -178,9 +178,9 @@ def analyze_metrics(state: AgentState) -> AgentState:
             gc_pct = float(jvm / run * 100)
             if gc_pct > 20:
                 anomalies.append({
-                    "spark_application_id": row["appId"],
+                    "spark_application_id": str(row["appId"]),
                     "metric": "gc_time_pct",
-                    "value": gc_pct,
+                    "value": float(gc_pct),
                     "threshold": 20,
                     "severity": "medium",
                 })
@@ -327,9 +327,9 @@ def rag_tuning(state: AgentState) -> AgentState:
                 spark_opts.append("--conf spark.executor.memoryOverhead=2g")
 
         tuning_recommendations.append({
-            "spark_application_id": anomaly["spark_application_id"],
-            "issue": anomaly["metric"],
-            "recommended_spark_submit": list(set(spark_opts)),
+            "spark_application_id": str(anomaly["spark_application_id"]),
+            "issue": str(anomaly["metric"]),
+            "recommended_spark_submit": [str(x) for x in spark_opts],
         })
 
     with UI_STATE_LOCK:
@@ -415,11 +415,11 @@ def get_ui_state():
         s = deepcopy(UI_STATE)
 
     return (
-        s["last_app_id"] or "",
-        s["last_job_launch_time"] or "",
-        s["anomalies"],
-        s["tuning_recommendations"],
-        s["last_updated"] or "",
+        str(s["last_app_id"] or ""),
+        str(s["last_job_launch_time"] or ""),
+        json.dumps(s["anomalies"], indent=2),
+        json.dumps(s["tuning_recommendations"], indent=2),
+        str(s["last_updated"] or ""),
     )
 
 def start_agent():
@@ -432,8 +432,9 @@ with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
         last_app = gr.Textbox(label="Last Spark Application ID")
         last_launch = gr.Textbox(label="Last Job Launch Time")
 
-    anomalies = gr.JSON(label="Detected Anomalies")
-    tuning = gr.JSON(label="Tuning Recommendations")
+    anomalies = gr.Textbox(label="Detected Anomalies", lines=10)
+    tuning = gr.Textbox(label="Tuning Recommendations", lines=10)
+
     updated = gr.Textbox(label="Last Updated (UTC)")
 
     # Timer polling every 10s
