@@ -76,16 +76,29 @@ SPARK_METRICS_TABLE = "default.spark_task_metrics"
 CHECKPOINT_TABLE = "agent_checkpoints"
 
 # ============================================================
-# Shared UI State (thread-safe enough for this use case)
+# Shared UI State
 # ============================================================
 
-UI_STATE = {
+from copy import deepcopy
+from threading import Lock
+
+class UIState(TypedDict):
+    last_app_id: Optional[str]
+    last_job_launch_time: Optional[str]
+    anomalies: List[dict]
+    tuning_recommendations: List[dict]
+    last_updated: Optional[str]
+
+UI_STATE: UIState = {
     "last_app_id": None,
     "last_job_launch_time": None,
     "anomalies": [],
     "tuning_recommendations": [],
     "last_updated": None,
 }
+
+UI_STATE_LOCK = Lock()
+
 
 # ============================================================
 # LangGraph State
@@ -150,35 +163,36 @@ def analyze_metrics(state: AgentState) -> AgentState:
     anomalies = []
 
     for row in state["metrics"]:
-        UI_STATE["last_app_id"] = row["appId"]
-        UI_STATE["last_job_launch_time"] = row["launchTime"]
-
         if row.get("shuffleBytesWritten", 0) > 1024:
             anomalies.append({
                 "spark_application_id": row["appId"],
                 "metric": "shuffleBytesWritten",
-                "value": row["shuffleBytesWritten"],
+                "value": int(row["shuffleBytesWritten"]),
                 "threshold": 1024,
                 "severity": "high",
             })
 
-        jvmGCTime = row.get("jvmGCTime")
-        executorRunTime = row.get("executorRunTime")
-        gc_time_pct = (row["jvmGCTime"] / row["executorRunTime"]) * 100
+        jvm = row.get("jvmGCTime")
+        run = row.get("executorRunTime")
+        if run and run > 0:
+            gc_pct = float(jvm / run * 100)
+            if gc_pct > 20:
+                anomalies.append({
+                    "spark_application_id": row["appId"],
+                    "metric": "gc_time_pct",
+                    "value": gc_pct,
+                    "threshold": 20,
+                    "severity": "medium",
+                })
 
-        if gc_time_pct > 20:
-            anomalies.append({
-                "spark_application_id": row["appId"],
-                "metric": "gc_time_pct",
-                "value": gc_time_pct,
-                "threshold": 20,
-                "severity": "medium",
-            })
-
-    UI_STATE["anomalies"] = anomalies
-    UI_STATE["last_updated"] = datetime.utcnow().isoformat()
+    with UI_STATE_LOCK:
+        UI_STATE["last_app_id"] = row["appId"]
+        UI_STATE["last_job_launch_time"] = row["launchTime"]
+        UI_STATE["anomalies"] = anomalies
+        UI_STATE["last_updated"] = datetime.utcnow().isoformat()
 
     return {"anomalies": anomalies}
+
 
 # ============================================================
 # Chroma setup
@@ -303,15 +317,10 @@ def rag_tuning(state: AgentState) -> AgentState:
         query = ISSUE_TO_QUERY.get(anomaly["metric"], "Spark performance tuning")
         emb = get_passage_embedding(query)
 
-        results = spark_col.query(
-            query_embeddings=[emb],
-            n_results=5,
-        )
+        results = spark_col.query(query_embeddings=[emb], n_results=5)
 
         spark_opts = []
-
-        docs = results["documents"][0]
-        for d in docs:
+        for d in results["documents"][0]:
             if "spark.sql.shuffle.partitions" in d:
                 spark_opts.append("--conf spark.sql.shuffle.partitions=2000")
             if "spark.executor.memoryOverhead" in d:
@@ -323,10 +332,12 @@ def rag_tuning(state: AgentState) -> AgentState:
             "recommended_spark_submit": list(set(spark_opts)),
         })
 
-    UI_STATE["tuning_recommendations"] = tuning_recommendations
-    UI_STATE["last_updated"] = datetime.utcnow().isoformat()
+    with UI_STATE_LOCK:
+        UI_STATE["tuning_recommendations"] = tuning_recommendations
+        UI_STATE["last_updated"] = datetime.utcnow().isoformat()
 
     return {"tuning_recommendations": tuning_recommendations}
+
 
 # ============================================================
 # Routing
@@ -398,14 +409,19 @@ def agent_loop():
 # ============================================================
 
 def get_ui_state():
+    with UI_STATE_LOCK:
+        s = deepcopy(UI_STATE)
+
     return (
-        str(UI_STATE["last_app_id"] or ""),
-        str(UI_STATE["last_job_launch_time"] or ""),
-        list(UI_STATE["anomalies"]),
-        list(UI_STATE["tuning_recommendations"]),
-        str(UI_STATE["last_updated"] or ""),
+        s["last_app_id"] or "",
+        s["last_job_launch_time"] or "",
+        s["anomalies"],
+        s["tuning_recommendations"],
+        s["last_updated"] or "",
     )
 
+def start_agent():
+    threading.Thread(target=agent_loop, daemon=True).start()
 
 with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
     gr.Markdown("## 🔍 Spark Performance Monitoring Agent")
@@ -418,6 +434,7 @@ with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
     tuning = gr.JSON(label="Tuning Recommendations")
     updated = gr.Textbox(label="Last Updated (UTC)")
 
+    # Timer polling every 10s
     timer = gr.Timer(value=10, active=True)
     timer.tick(
         fn=get_ui_state,
@@ -425,12 +442,14 @@ with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
         outputs=[last_app, last_launch, anomalies, tuning, updated]
     )
 
+    demo.load(start_agent)
+
+
 # ============================================================
 # Main
 # ============================================================
 
 if __name__ == "__main__":
-    threading.Thread(target=agent_loop, daemon=True).start()
     demo.launch(share=False,
                 show_error=True,
                 server_name='127.0.0.1',
