@@ -238,6 +238,8 @@ Return ONLY valid JSON in this format:
     )
 
     response = llm.invoke([system, human])
+    raw = response.content
+    print("LLM RAW OUTPUT:\n", raw)
     return json.loads(response.content)
 
 # ============================================================
