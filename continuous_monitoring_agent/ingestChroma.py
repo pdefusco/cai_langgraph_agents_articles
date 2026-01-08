@@ -48,9 +48,9 @@ import os
 # -------------------------
 # 1️⃣ Initialize clients
 # -------------------------
-EMBEDDING_MODEL_ID = os.environ["MODEL_ID"]
-EMBEDDING_ENDPOINT_BASE_URL = os.environ["ENDPOINT_BASE_URL"]
-EMBEDDING_CDP_TOKEN = os.environ["CDP_TOKEN"]
+EMBEDDING_MODEL_ID = os.environ["EMBEDDING_MODEL_ID"]
+EMBEDDING_ENDPOINT_BASE_URL = os.environ["EMBEDDING_ENDPOINT_BASE_URL"]
+EMBEDDING_CDP_TOKEN = os.environ["EMBEDDING_CDP_TOKEN"]
 
 # -------------------------
 # 2️⃣ Initialize Chroma client (persistent)
