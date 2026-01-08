@@ -367,9 +367,9 @@ def agent_loop():
         if last_launch_time:
             where_clause = f"""
             WHERE (
-                TIMESTAMP(launchTime) > TIMESTAMP('{last_launch_time}')
+                TIMESTAMP(ts) > TIMESTAMP('{last_launch_time}')
                 OR (
-                    TIMESTAMP(launchTime) = TIMESTAMP('{last_launch_time}')
+                    TIMESTAMP(ts) = TIMESTAMP('{last_launch_time}')
                     AND appId > '{last_app_id}'
                 )
             )
@@ -379,7 +379,7 @@ def agent_loop():
             SELECT *
             FROM {SPARK_METRICS_TABLE}
             {where_clause}
-            ORDER BY launchTime, appId
+            ORDER BY ts, appId
         """)
 
         if df.count() > 0:
@@ -387,8 +387,8 @@ def agent_loop():
             graph.invoke({"metrics": rows, "agent_version": AGENT_VERSION})
 
             last = rows[-1]
-            save_checkpoint(spark, last["launchTime"], last["appId"])
-            last_launch_time = last["launchTime"]
+            save_checkpoint(spark, last["ts"], last["appId"])
+            last_launch_time = last["ts"]
             last_app_id = last["appId"]
 
         time.sleep(POLL_INTERVAL_SECONDS)
