@@ -434,13 +434,23 @@ def agent_loop():
             last_ts = last_launch_time or "N/A"
             result = {"anomalies": [], "tuning_recommendations": []}
 
-        # Update UI_STATE
         with UI_STATE_LOCK:
             UI_STATE["last_app_id"] = str(latest_app_id)
             UI_STATE["last_job_launch_time"] = str(last_ts)
             UI_STATE["anomaly_md"] = format_anomalies(result.get("anomalies", []))
             UI_STATE["tuning_md"] = format_tuning(result.get("tuning_recommendations", []))
+
+            # Maintain a list of all aggregated app metrics
+            if "aggregated_metrics" not in UI_STATE:
+                UI_STATE["aggregated_metrics"] = []
+
+            # Append new app row only if it's not already in the list
+            existing_ids = {r["appId"] for r in UI_STATE["aggregated_metrics"]}
+            if latest_app_id not in existing_ids:
+                UI_STATE["aggregated_metrics"].append(latest_app_row)
+
             UI_STATE["last_updated"] = datetime.utcnow().isoformat()
+
 
         time.sleep(POLL_INTERVAL_SECONDS)
 
@@ -453,13 +463,23 @@ def get_ui_state():
     with UI_STATE_LOCK:
         s = deepcopy(UI_STATE)
 
-    # Return strings for all outputs
+    # Convert the aggregated metrics to a pandas DataFrame for Gradio table
+    import pandas as pd
+    if "aggregated_metrics" in s and s["aggregated_metrics"]:
+        df = pd.DataFrame(s["aggregated_metrics"])
+    else:
+        df = pd.DataFrame(columns=[
+            "appId", "first_ts", "last_ts", "shuffleBytesWritten",
+            "executorRunTime", "jvmGCTime"
+        ])
+
     return (
-        str(s.get("last_app_id", "N/A")),
-        str(s.get("last_job_launch_time", "N/A")),
-        str(s.get("anomaly_md", "No anomalies yet")),
-        str(s.get("tuning_md", "No recommendations yet")),
-        str(s.get("last_updated", "N/A")),
+        str(s.get("last_app_id", "")),
+        str(s.get("last_job_launch_time", "")),
+        s.get("anomaly_md", "✅ No anomalies detected"),
+        s.get("tuning_md", "ℹ️ No tuning recommendations"),
+        str(s.get("last_updated", "")),
+        df
     )
 
 
@@ -485,27 +505,28 @@ with UI_STATE_LOCK:
 with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
     gr.Markdown("## 🔍 Spark Performance Monitoring Agent")
 
-    # Row for basic Spark app info
-    last_app = gr.Textbox(label="Last Spark Application ID", interactive=False)
-    last_launch = gr.Textbox(label="Last Job Launch Time", interactive=False)
-    updated = gr.Textbox(label="Last Updated (UTC)", interactive=False)
+    last_app = gr.Textbox(label="Last Spark Application ID")
+    last_launch = gr.Textbox(label="Last Job Launch Time")
 
-    # Markdown sections for anomalies and tuning
     anomalies = gr.Markdown(label="Detected Anomalies")
     tuning = gr.Markdown(label="Tuning Recommendations")
-    updated = gr.Textbox(label="Last Updated (UTC)", interactive=False)
+    updated = gr.Textbox(label="Last Updated (UTC)")
 
-    # Timer for live updates
-    timer = gr.Timer(value=10, active=True)
-    timer.tick(
-        fn=get_ui_state,  # Returns the latest UI_STATE
-        inputs=[],
-        outputs=[last_app, last_launch, anomalies, tuning, updated],
+    # Table for all aggregated metrics
+    metrics_table = gr.DataFrame(
+        headers=["appId", "first_ts", "last_ts", "shuffleBytesWritten", "executorRunTime", "jvmGCTime"],
+        label="Aggregated Spark Metrics",
+        datatype=["str","str","str","number","number","number"]
     )
 
-    # Start agent when page loads
-    # Also optionally trigger an immediate first UI update
-    demo.load(fn=start_agent)
+    timer = gr.Timer(value=10, active=True)
+    timer.tick(
+        fn=get_ui_state,
+        inputs=[],
+        outputs=[last_app, last_launch, anomalies, tuning, updated, metrics_table],
+    )
+
+    demo.load(start_agent)
     demo.load(fn=get_ui_state, outputs=[last_app, last_launch, anomalies, tuning, updated])
 
 # ============================================================
