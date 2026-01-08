@@ -390,59 +390,50 @@ def format_tuning(recs: list[dict]) -> str:
 def agent_loop():
     # Ensure the checkpoint table exists and load last run info
     create_checkpoint(spark)
-    last_launch_time, last_app_id = load_checkpoint(spark)
+    last_launch_time, _ = load_checkpoint(spark)
 
     while True:
-        # Build WHERE clause to only fetch new metrics
+        # Only fetch rows newer than last processed timestamp
         where_clause = ""
         if last_launch_time:
-            where_clause = f"""
-            WHERE (
-                TIMESTAMP(ts) > TIMESTAMP('{last_launch_time}')
-                OR (
-                    TIMESTAMP(ts) = TIMESTAMP('{last_launch_time}')
-                    AND appId > '{last_app_id}'
-                )
-            )
-            """
+            where_clause = f"WHERE TIMESTAMP(ts) > TIMESTAMP('{last_launch_time}')"
 
         # Query Spark metrics
         df = spark.sql(f"""
             SELECT *
             FROM {SPARK_METRICS_TABLE}
             {where_clause}
-            ORDER BY ts, appId
+            ORDER BY ts
         """)
 
-        if df.count() > 0:
-            # Convert to dicts for LangGraph
-            rows = [r.asDict() for r in df.collect()]
+        rows = [r.asDict() for r in df.collect()] if df.count() > 0 else []
 
-            # Invoke LangGraph nodes (pure computation)
-            result = graph.invoke({
-                "metrics": rows,
-                "agent_version": AGENT_VERSION,
-            })
-            print("GRAPH OUTPUT:", result)
+        # Invoke LangGraph nodes (pure computation)
+        result = graph.invoke({
+            "metrics": rows,
+            "agent_version": AGENT_VERSION,
+        })
+        print("GRAPH OUTPUT:", result)
 
-            # Take the last row for checkpointing
+        # Determine the latest timestamp for checkpoint / UI
+        if rows:
             last = rows[-1]
-
-            # Save checkpoint in Spark
-            save_checkpoint(spark, last["ts"], last["appId"])
             last_launch_time = last["ts"]
-            last_app_id = last["appId"]
+            # Persist checkpoint
+            save_checkpoint(spark, last["ts"], last["appId"])
+        else:
+            last = {"ts": last_launch_time, "appId": "N/A"}
 
-            with UI_STATE_LOCK:
-                UI_STATE["last_app_id"] = str(last["appId"])
-                UI_STATE["last_job_launch_time"] = str(last["ts"])
-                UI_STATE["anomaly_md"] = format_anomalies(result.get("anomalies", []))
-                UI_STATE["tuning_md"] = format_tuning(result.get("tuning_recommendations", []))
-                UI_STATE["last_updated"] = datetime.utcnow().isoformat()
+        # Update UI_STATE every loop iteration
+        with UI_STATE_LOCK:
+            UI_STATE["last_app_id"] = str(last.get("appId", "N/A"))
+            UI_STATE["last_job_launch_time"] = str(last.get("ts", "N/A"))
+            UI_STATE["anomaly_md"] = format_anomalies(result.get("anomalies", []))
+            UI_STATE["tuning_md"] = format_tuning(result.get("tuning_recommendations", []))
+            UI_STATE["last_updated"] = datetime.utcnow().isoformat()
 
-
-        # Sleep until next poll
         time.sleep(POLL_INTERVAL_SECONDS)
+
 
 
 # ============================================================
