@@ -163,6 +163,7 @@ def analyze_metrics(state: AgentState) -> AgentState:
     anomalies = []
 
     for row in state["metrics"]:
+        print("ROW SANITY CHECK: ", row)
         if row.get("shuffleBytesWritten", 0) > 1024:
             anomalies.append({
                 "spark_application_id": str(row["appId"]),
