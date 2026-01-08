@@ -48,9 +48,9 @@ import os
 # -------------------------
 # 1️⃣ Initialize clients
 # -------------------------
-MODEL_ID = os.environ["MODEL_ID"]
-ENDPOINT_BASE_URL = os.environ["ENDPOINT_BASE_URL"]
-CDP_TOKEN = os.environ["CDP_TOKEN"]
+EMBEDDING_MODEL_ID = os.environ["MODEL_ID"]
+EMBEDDING_ENDPOINT_BASE_URL = os.environ["ENDPOINT_BASE_URL"]
+EMBEDDING_CDP_TOKEN = os.environ["CDP_TOKEN"]
 
 # -------------------------
 # 2️⃣ Initialize Chroma client (persistent)
@@ -92,21 +92,21 @@ import json
 from tenacity import retry, wait_exponential, stop_after_attempt
 
 llmClient = OpenAI(
-    base_url=ENDPOINT_BASE_URL,  # EXACT value from AIS UI (ends with /v1)
-    api_key=CDP_TOKEN,
+    base_url=EMBEDDING_ENDPOINT_BASE_URL,  # EXACT value from AIS UI (ends with /v1)
+    api_key=EMBEDDING_CDP_TOKEN,
 )
 
 def get_query_embedding(text: str):
     return llmClient.embeddings.create(
         input=text,
-        model=MODEL_ID,
+        model=EMBEDDING_MODEL_ID,
         extra_body={"input_type": "query"},
     ).data[0].embedding
 
 def get_passage_embedding(text: str):
     return llmClient.embeddings.create(
         input=text,
-        model=MODEL_ID,
+        model=EMBEDDING_MODEL_ID,
         extra_body={"input_type": "passage"},
     ).data[0].embedding
 
