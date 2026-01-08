@@ -55,12 +55,13 @@ EMBEDDING_CDP_TOKEN = os.environ["EMBEDDING_CDP_TOKEN"]
 # -------------------------
 # 2️⃣ Initialize Chroma client (persistent)
 # -------------------------
-CHROMA_DIR = "/home/cdsw/chroma"  # persist all collections here
+# Local directory for Chroma DB
+CHROMA_DIR = os.path.abspath("/home/cdsw/chroma")
 os.makedirs(CHROMA_DIR, exist_ok=True)
 
-client = chromadb.PersistentClient(
+# Simple persistent client using default Chroma implementation
+client = chromadb.Client(
     Settings(
-        chroma_db_impl="duckdb+parquet",
         persist_directory=CHROMA_DIR
     )
 )
