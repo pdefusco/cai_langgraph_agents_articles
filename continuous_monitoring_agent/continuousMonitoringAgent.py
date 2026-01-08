@@ -136,8 +136,6 @@ def save_checkpoint(spark, launch_time, app_id):
         INSERT INTO {CHECKPOINT_TABLE}
         PARTITION (agent_name='{AGENT_NAME}', agent_version='{AGENT_VERSION}')
         VALUES (
-            '{AGENT_NAME}',
-            '{AGENT_VERSION}',
             TIMESTAMP('{launch_time}'),
             '{app_id}',
             TIMESTAMP('{datetime.utcnow()}')
