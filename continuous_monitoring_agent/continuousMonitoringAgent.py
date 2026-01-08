@@ -327,7 +327,6 @@ def rag_tuning(state: AgentState) -> AgentState:
 
     return {"tuning_recommendations": tuning_recommendations}
 
-
 # ============================================================
 # Routing
 # ============================================================
@@ -424,6 +423,7 @@ def agent_loop():
                 "metrics": rows,
                 "agent_version": AGENT_VERSION,
             })
+            print("GRAPH OUTPUT:", result)
 
             # Take the last row for checkpointing
             last = rows[-1]
