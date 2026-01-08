@@ -45,9 +45,14 @@ import time
 import threading
 from datetime import datetime
 from typing import List, Optional, TypedDict
+from copy import deepcopy
+import json
+import os
 import gradio as gr
 from pyspark.sql import SparkSession
 from langgraph.graph import StateGraph, END
+from langchain_openai import ChatOpenAI
+from langchain.schema import SystemMessage, HumanMessage
 import chromadb
 from chromadb.config import Settings
 
@@ -59,8 +64,7 @@ spark = (
     SparkSession.builder
     .appName("spark-performance-agent-ui")
     .config("spark.executor.cores", 2)
-    .config("spark.execuctor.memory", '4g')
-    .config("spark.kerberos.access.hadoopFileSystems","s3a://pdf-jan-26-buk-7c0e831f/")
+    .config("spark.execuctor.memory", "4g")
     .getOrCreate()
 )
 
@@ -69,7 +73,7 @@ spark = (
 # ============================================================
 
 AGENT_NAME = "spark_perf_agent"
-AGENT_VERSION = "v1"
+AGENT_VERSION = "v2"
 POLL_INTERVAL_SECONDS = 30
 
 SPARK_METRICS_TABLE = "default.spark_task_metrics"
@@ -78,22 +82,20 @@ SPARK_METRICS_TABLE = "default.spark_task_metrics"
 # Shared UI State
 # ============================================================
 
-from copy import deepcopy
-from threading import Lock
-
 class UIState(TypedDict):
-    anomalies: List[dict]
-    tuning_recommendations: List[dict]
+    anomaly_md: str
+    tuning_md: str
     last_updated: Optional[str]
+    aggregated_metrics_df: Optional[object]
 
-# ======= Initialize UI_STATE =======
-UI_STATE = {
+UI_STATE: UIState = {
     "anomaly_md": "No anomalies detected yet.",
     "tuning_md": "No tuning recommendations yet.",
     "last_updated": "N/A",
+    "aggregated_metrics_df": None,
 }
-UI_STATE_LOCK = threading.Lock()
 
+UI_STATE_LOCK = threading.Lock()
 
 # ============================================================
 # LangGraph State
@@ -113,7 +115,6 @@ def analyze_metrics(state: AgentState) -> AgentState:
     anomalies = []
 
     for row in state["metrics"]:
-        print("ROW SANITY CHECK: ", row)
         if row.get("shuffleBytesWritten", 0) > 100:
             anomalies.append({
                 "spark_application_id": str(row["appId"]),
@@ -136,70 +137,40 @@ def analyze_metrics(state: AgentState) -> AgentState:
                     "severity": "medium",
                 })
 
-    print("ANOMALIES THIS INVOCATION: ", anomalies)
     return {"anomalies": anomalies}
 
 # ============================================================
-# Chroma setup
+# Chroma + LLM setup
 # ============================================================
 
-# multi_agent_langgraph_demo.py
-import requests
-import chromadb
-from bs4 import BeautifulSoup
-from chromadb.config import Settings
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langgraph.graph import StateGraph, MessagesState, START, END
-import gradio as gr
-import time
-import os
-
-# -------------------------
-# 1️⃣ Initialize clients
-# -------------------------
-MODEL_ID = os.environ["MODEL_ID"]
-ENDPOINT_BASE_URL = os.environ["ENDPOINT_BASE_URL"]
-CDP_TOKEN = os.environ["CDP_TOKEN"]
+EMBEDDING_MODEL_ID = os.environ["EMBEDDING_MODEL_ID"]
+EMBEDDING_ENDPOINT_BASE_URL = os.environ["EMBEDDING_ENDPOINT_BASE_URL"]
+EMBEDDING_CDP_TOKEN = os.environ["EMBEDDING_CDP_TOKEN"]
 
 client = chromadb.PersistentClient()
+spark_col = client.get_or_create_collection("spark_tuning")
 
-# -------------------------
-# 2️⃣ Scrape helper
-# -------------------------
-def fetch_text(url):
-    r = requests.get(url)
-    soup = BeautifulSoup(r.text, "html.parser")
-    paragraphs = soup.find_all(["p", "li", "h1","h2","h3","pre"])
-    return "\n".join([p.get_text(separator=" ", strip=True) for p in paragraphs])
-
-def chunk_text(text, max_len=250):
-    lines = text.split("\n")
-    chunks, current = [], []
-    for line in lines:
-        current.append(line)
-        if sum(len(l) for l in current) > max_len:
-            chunks.append(" ".join(current))
-            current = []
-    if current:
-        chunks.append(" ".join(current))
-    return chunks
-
-import requests
-from openai import OpenAI
-import json
-from tenacity import retry, wait_exponential, stop_after_attempt
-
-llmClient = OpenAI(
-    base_url=ENDPOINT_BASE_URL,  # EXACT value from AIS UI (ends with /v1)
-    api_key=CDP_TOKEN,
+llm = ChatOpenAI(
+    model=EMBEDDING_MODEL_ID,
+    base_url=EMBEDDING_ENDPOINT_BASE_URL,
+    api_key=EMBEDDING_CDP_TOKEN,
+    temperature=0.2,
 )
 
-def get_query_embedding(text: str):
-    return llmClient.embeddings.create(
-        input=text,
-        model=MODEL_ID,
-        extra_body={"input_type": "query"},
-    ).data[0].embedding
+# ============================================================
+# Embedding helpers (unchanged on purpose)
+# ============================================================
+
+LLM_MODEL_ID = os.environ["LLM_MODEL_ID"]
+LLM_ENDPOINT_BASE_URL = os.environ["LLM_ENDPOINT_BASE_URL"]
+LLM_CDP_TOKEN = os.environ["LLM_CDP_TOKEN"]
+
+from openai import OpenAI
+
+llmClient = OpenAI(
+    base_url=LLM_ENDPOINT_BASE_URL,
+    api_key=LLM_CDP_TOKEN,
+)
 
 def get_passage_embedding(text: str):
     return llmClient.embeddings.create(
@@ -208,73 +179,102 @@ def get_passage_embedding(text: str):
         extra_body={"input_type": "passage"},
     ).data[0].embedding
 
-# -------------------------
-# 3️⃣ Chroma collections
-# -------------------------
-spark_col = client.get_or_create_collection("spark_tuning")
-hadoop_col = client.get_or_create_collection("hadoop_perf")
+# ============================================================
+# Improved RAG query construction
+# ============================================================
 
-# -------------------------
-# 4️⃣ Chroma ingestion
-# -------------------------
-def ingest_demo_data():
-    # Spark docs
-    spark_url = "https://spark.apache.org/docs/latest/tuning.html"
-    spark_chunks = chunk_text(fetch_text(spark_url))
-    for i, chunk in enumerate(spark_chunks):
-        spark_col.add(
-            ids=[f"spark_{i}"],  # <--- unique ID for each chunk
-            documents=[chunk],
-            metadatas=[{"source": "spark_tuning", "chunk_index": i}],
-            embeddings=[get_passage_embedding(chunk)]  # match the retrieval method
+def build_rag_query(anomaly: dict) -> str:
+    metric = anomaly["metric"]
+
+    if metric == "shuffleBytesWritten":
+        return (
+            "Spark tuning for excessive shuffle data, large shuffles, "
+            "shuffle spill to disk, shuffle partitions, wide transformations"
         )
-        time.sleep(0.5)
 
-    # Hadoop docs
-    hadoop_url = "https://openlogic.com/blog/how-to-improve-hadoop-performance"
-    hadoop_chunks = chunk_text(fetch_text(hadoop_url))
-    for j, chunk in enumerate(hadoop_chunks):
-        hadoop_col.add(
-            ids=[f"hadoop_{j}"],  # <--- unique ID for each chunk
-            documents=[chunk],
-            metadatas=[{"source": "hadoop_perf", "chunk_index": j}],
-            embeddings=[get_passage_embedding(chunk)]  # match retrieval
+    if metric == "gc_time_pct":
+        return (
+            "Spark tuning for high JVM garbage collection time, "
+            "executor memory pressure, GC overhead, executor sizing"
         )
-        time.sleep(0.5)
 
-ingest_demo_data()
-print("Spark docs:", len(spark_col.get()["documents"]))
-print("Hadoop docs:", len(hadoop_col.get()["documents"]))
-
-ISSUE_TO_QUERY = {
-    "shuffle_spill_mb": "Spark shuffle spill tuning",
-    "gc_time_pct": "Spark GC overhead tuning",
-}
+    return (
+        "Spark performance tuning for executor memory, "
+        "parallelism, and shuffle behavior"
+    )
 
 # ============================================================
-# Node 2: RAG tuning
+# LLM-based Spark recommendation
+# ============================================================
+
+def llm_recommend_spark_configs(anomaly: dict, docs: list[str]) -> list[dict]:
+    system = SystemMessage(
+        content=(
+            "You are a Spark performance tuning expert. "
+            "Analyze Spark performance anomalies and documentation excerpts. "
+            "Recommend concrete Spark configuration changes. "
+            "Be concise and practical."
+        )
+    )
+
+    human = HumanMessage(
+        content=f"""
+Detected anomaly:
+- Metric: {anomaly['metric']}
+- Value: {anomaly['value']}
+- Severity: {anomaly['severity']}
+
+Relevant Spark documentation excerpts:
+{chr(10).join(docs)}
+
+Return ONLY valid JSON in this format:
+[
+  {{
+    "config": "spark.sql.shuffle.partitions",
+    "value": "2000",
+    "reason": "Large shuffle volume benefits from higher parallelism"
+  }}
+]
+"""
+    )
+
+    response = llm.invoke([system, human])
+    return json.loads(response.content)
+
+# ============================================================
+# Node 2: RAG tuning (LLM-driven)
 # ============================================================
 
 def rag_tuning(state: AgentState) -> AgentState:
     tuning_recommendations = []
 
     for anomaly in state["anomalies"]:
-        query = ISSUE_TO_QUERY.get(anomaly["metric"], "Spark performance tuning")
+        query = build_rag_query(anomaly)
         emb = get_passage_embedding(query)
 
-        results = spark_col.query(query_embeddings=[emb], n_results=5)
+        results = spark_col.query(
+            query_embeddings=[emb],
+            n_results=5,
+        )
 
-        spark_opts = []
-        for d in results["documents"][0]:
-            if "spark.sql.shuffle.partitions" in d:
-                spark_opts.append("--conf spark.sql.shuffle.partitions=2000")
-            if "spark.executor.memoryOverhead" in d:
-                spark_opts.append("--conf spark.executor.memoryOverhead=2g")
+        docs = results["documents"][0]
+
+        try:
+            llm_recs = llm_recommend_spark_configs(anomaly, docs)
+        except Exception as e:
+            print("LLM recommendation failed:", e)
+            llm_recs = []
+
+        spark_submit_flags = [
+            f"--conf {r['config']}={r['value']}"
+            for r in llm_recs
+        ]
 
         tuning_recommendations.append({
-            "spark_application_id": str(anomaly["spark_application_id"]),
-            "issue": str(anomaly["metric"]),
-            "recommended_spark_submit": [str(x) for x in spark_opts],
+            "spark_application_id": anomaly["spark_application_id"],
+            "issue": anomaly["metric"],
+            "recommended_spark_submit": spark_submit_flags,
+            "details": llm_recs,
         })
 
     return {"tuning_recommendations": tuning_recommendations}
@@ -293,6 +293,7 @@ def route(state: AgentState):
 builder = StateGraph(AgentState)
 builder.add_node("analyze", analyze_metrics)
 builder.add_node("rag_tuning", rag_tuning)
+
 builder.set_entry_point("analyze")
 
 builder.add_conditional_edges(
@@ -306,7 +307,7 @@ builder.add_edge("rag_tuning", END)
 graph = builder.compile()
 
 # ============================================================
-# Polling loop (background thread)
+# Formatting helpers
 # ============================================================
 
 def format_anomalies(anomalies: list[dict]) -> str:
@@ -323,7 +324,6 @@ def format_anomalies(anomalies: list[dict]) -> str:
         )
     return "\n".join(lines)
 
-
 def format_tuning(recs: list[dict]) -> str:
     if not recs:
         return "ℹ️ No tuning recommendations."
@@ -338,12 +338,12 @@ def format_tuning(recs: list[dict]) -> str:
         )
     return "\n".join(lines)
 
+# ============================================================
+# Agent loop
+# ============================================================
+
 def agent_loop():
     while True:
-        print("Polling Spark metrics table for all applications...")
-        start = time.time()
-
-        # Aggregate metrics per Spark application (all rows)
         df = spark.sql(f"""
             SELECT
                 appId,
@@ -357,41 +357,23 @@ def agent_loop():
             ORDER BY last_ts
         """)
 
-        row_count = df.count()
-        print(f"ROWS FETCHED: {row_count}")
-        df.show(5, truncate=False)
-        duration = time.time() - start
-        print(f"Query returned {row_count} rows in {duration:.2f}s")
-
-        # Convert all rows to dicts
-        rows = [r.asDict() for r in df.collect()] if row_count > 0 else []
+        rows = [r.asDict() for r in df.collect()] if df.count() > 0 else []
 
         if rows:
-            # Use all rows for anomaly detection and tuning
             result = graph.invoke({
-                "metrics": rows,  # all aggregated rows
+                "metrics": rows,
                 "agent_version": AGENT_VERSION,
             })
-
-            latest_app_row = rows[-1]
-            latest_app_id = latest_app_row["appId"]
-            last_ts = latest_app_row["last_ts"]
         else:
-            latest_app_id = "N/A"
-            last_ts = "N/A"
             result = {"anomalies": [], "tuning_recommendations": []}
 
-        # Update UI_STATE with all aggregated metrics and markdowns
         with UI_STATE_LOCK:
             UI_STATE["anomaly_md"] = format_anomalies(result.get("anomalies", []))
             UI_STATE["tuning_md"] = format_tuning(result.get("tuning_recommendations", []))
             UI_STATE["last_updated"] = datetime.utcnow().isoformat()
-
-            # Keep all aggregated metrics as a Pandas DataFrame
-            UI_STATE["aggregated_metrics_df"] = df.toPandas() if row_count > 0 else None
+            UI_STATE["aggregated_metrics_df"] = df.toPandas() if rows else None
 
         time.sleep(POLL_INTERVAL_SECONDS)
-
 
 # ============================================================
 # Gradio UI
@@ -401,35 +383,18 @@ def get_ui_state():
     with UI_STATE_LOCK:
         s = deepcopy(UI_STATE)
 
-    # Convert aggregated metrics dataframe to HTML for display
     metrics_df = s.get("aggregated_metrics_df")
-    if metrics_df is not None:
-        metrics_html = metrics_df.to_html(index=False)
-    else:
-        metrics_html = "No Spark metrics available"
+    metrics_html = metrics_df.to_html(index=False) if metrics_df is not None else "No Spark metrics"
 
     return (
         metrics_html,
-        s.get("anomaly_md", "✅ No anomalies detected"),
-        s.get("tuning_md", "ℹ️ No tuning recommendations"),
-        s.get("last_updated", ""),
+        s["anomaly_md"],
+        s["tuning_md"],
+        s["last_updated"],
     )
 
-
-# ============================================================
-# Gradio UI
-# ============================================================
-
 def start_agent():
-    """Starts the background agent loop in a daemon thread."""
     threading.Thread(target=agent_loop, daemon=True).start()
-    # No return needed; UI updates are handled by the timer
-
-# Initialize UI_STATE placeholders (optional but recommended)
-with UI_STATE_LOCK:
-    UI_STATE.setdefault("anomaly_md", "Waiting for anomalies...")
-    UI_STATE.setdefault("tuning_md", "Waiting for tuning recommendations...")
-    UI_STATE.setdefault("last_updated", "")
 
 with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
     gr.Markdown("## 🔍 Spark Performance Monitoring Agent")
@@ -447,14 +412,11 @@ with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
     )
 
     demo.load(fn=start_agent)
-    #demo.load(fn=get_ui_state, outputs=[anomalies, tuning, updated, metrics_table])
-
-# ============================================================
-# Main
-# ============================================================
 
 if __name__ == "__main__":
-    demo.launch(share=False,
-                show_error=True,
-                server_name='127.0.0.1',
-                server_port=int(os.getenv('CDSW_APP_PORT')))
+    demo.launch(
+        share=False,
+        show_error=True,
+        server_name="127.0.0.1",
+        server_port=int(os.getenv("CDSW_APP_PORT")),
+    )
