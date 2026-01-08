@@ -186,6 +186,7 @@ def analyze_metrics(state: AgentState) -> AgentState:
                     "severity": "medium",
                 })
 
+    print("ANOMALIES THIS INVOCATION: ", anomalies)
     return {"anomalies": anomalies}
 
 # ============================================================
