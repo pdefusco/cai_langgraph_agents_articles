@@ -52,7 +52,7 @@ import gradio as gr
 from pyspark.sql import SparkSession
 from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI
-from langchain.schema import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage
 import chromadb
 from chromadb.config import Settings
 
