@@ -143,34 +143,32 @@ def analyze_metrics(state: AgentState) -> AgentState:
 # ============================================================
 # Chroma + LLM setup
 # ============================================================
-
-EMBEDDING_MODEL_ID = os.environ["EMBEDDING_MODEL_ID"]
-EMBEDDING_ENDPOINT_BASE_URL = os.environ["EMBEDDING_ENDPOINT_BASE_URL"]
-EMBEDDING_CDP_TOKEN = os.environ["EMBEDDING_CDP_TOKEN"]
+LLM_MODEL_ID = os.environ["LLM_MODEL_ID"]
+LLM_ENDPOINT_BASE_URL = os.environ["LLM_ENDPOINT_BASE_URL"]
+LLM_CDP_TOKEN = os.environ["LLM_CDP_TOKEN"]
 
 client = chromadb.PersistentClient()
 spark_col = client.get_or_create_collection("spark_tuning")
 
 llm = ChatOpenAI(
-    model=EMBEDDING_MODEL_ID,
-    base_url=EMBEDDING_ENDPOINT_BASE_URL,
-    api_key=EMBEDDING_CDP_TOKEN,
+    model=LLM_MODEL_ID,
+    base_url=LLM_ENDPOINT_BASE_URL
+    api_key=LLM_CDP_TOKEN
     temperature=0.2,
 )
 
 # ============================================================
 # Embedding helpers (unchanged on purpose)
 # ============================================================
-
-LLM_MODEL_ID = os.environ["LLM_MODEL_ID"]
-LLM_ENDPOINT_BASE_URL = os.environ["LLM_ENDPOINT_BASE_URL"]
-LLM_CDP_TOKEN = os.environ["LLM_CDP_TOKEN"]
+EMBEDDING_MODEL_ID = os.environ["EMBEDDING_MODEL_ID"]
+EMBEDDING_ENDPOINT_BASE_URL = os.environ["EMBEDDING_ENDPOINT_BASE_URL"]
+EMBEDDING_CDP_TOKEN = os.environ["EMBEDDING_CDP_TOKEN"]
 
 from openai import OpenAI
 
 llmClient = OpenAI(
-    base_url=LLM_ENDPOINT_BASE_URL,
-    api_key=LLM_CDP_TOKEN,
+    base_url=EMBEDDING_ENDPOINT_BASE_URL,
+    api_key=EMBEDDING_CDP_TOKEN,
 )
 
 def get_passage_embedding(text: str):
