@@ -410,17 +410,14 @@ def agent_loop():
 
 def get_ui_state():
     print("TIMER TICK FIRED", flush=True)
-
-    with UI_STATE_LOCK:
-        s = deepcopy(UI_STATE)
-
     return (
-        str(s["last_app_id"] or ""),
-        str(s["last_job_launch_time"] or ""),
-        json.dumps(s["anomalies"], indent=2),
-        json.dumps(s["tuning_recommendations"], indent=2),
-        str(s["last_updated"] or ""),
+        "APP_ID_TEST",
+        "LAUNCH_TIME_TEST",
+        "ANOMALY_TEST",
+        "TUNING_TEST",
+        "UPDATED_TEST",
     )
+
 
 def start_agent():
     threading.Thread(target=agent_loop, daemon=True).start()
@@ -432,17 +429,15 @@ with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
         last_app = gr.Textbox(label="Last Spark Application ID")
         last_launch = gr.Textbox(label="Last Job Launch Time")
 
-    anomalies = gr.Textbox(label="Detected Anomalies", lines=10)
-    tuning = gr.Textbox(label="Tuning Recommendations", lines=10)
-
+    anomalies = gr.Textbox(label="Detected Anomalies")
+    tuning = gr.Textbox(label="Tuning Recommendations")
     updated = gr.Textbox(label="Last Updated (UTC)")
 
-    # Timer polling every 10s
     timer = gr.Timer(value=10, active=True)
     timer.tick(
         fn=get_ui_state,
         inputs=[],
-        outputs=[last_app, last_launch, anomalies, tuning, updated]
+        outputs=[last_app, last_launch, anomalies, tuning, updated],
     )
 
     demo.load(start_agent)
