@@ -89,15 +89,15 @@ class UIState(TypedDict):
     tuning_recommendations: List[dict]
     last_updated: Optional[str]
 
+# ======= Initialize UI_STATE =======
 UI_STATE = {
-    "last_app_id": "",
-    "last_job_launch_time": "",
-    "anomaly_md": "",
-    "tuning_md": "",
-    "last_updated": "",
+    "last_app_id": "Waiting for Spark metrics...",
+    "last_job_launch_time": "N/A",
+    "anomaly_md": "No anomalies detected yet.",
+    "tuning_md": "No tuning recommendations yet.",
+    "last_updated": "N/A",
 }
-
-UI_STATE_LOCK = Lock()
+UI_STATE_LOCK = threading.Lock()
 
 
 # ============================================================
@@ -433,17 +433,13 @@ def agent_loop():
             last_launch_time = last["ts"]
             last_app_id = last["appId"]
 
-            # Update UI_STATE in a single, locked block
             with UI_STATE_LOCK:
                 UI_STATE["last_app_id"] = str(last["appId"])
                 UI_STATE["last_job_launch_time"] = str(last["ts"])
-                UI_STATE["anomaly_md"] = format_anomalies(
-                    result.get("anomalies", [])
-                )
-                UI_STATE["tuning_md"] = format_tuning(
-                    result.get("tuning_recommendations", [])
-                )
+                UI_STATE["anomaly_md"] = format_anomalies(result.get("anomalies", []))
+                UI_STATE["tuning_md"] = format_tuning(result.get("tuning_recommendations", []))
                 UI_STATE["last_updated"] = datetime.utcnow().isoformat()
+
 
         # Sleep until next poll
         time.sleep(POLL_INTERVAL_SECONDS)
@@ -457,13 +453,15 @@ def get_ui_state():
     with UI_STATE_LOCK:
         s = deepcopy(UI_STATE)
 
+    # Return strings for all outputs
     return (
-        s["last_app_id"],
-        s["last_job_launch_time"],
-        s["anomaly_md"],
-        s["tuning_md"],
-        s["last_updated"],
+        str(s.get("last_app_id", "N/A")),
+        str(s.get("last_job_launch_time", "N/A")),
+        str(s.get("anomaly_md", "No anomalies yet")),
+        str(s.get("tuning_md", "No recommendations yet")),
+        str(s.get("last_updated", "N/A")),
     )
+
 
 # ============================================================
 # Gradio UI
@@ -488,9 +486,9 @@ with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
     gr.Markdown("## 🔍 Spark Performance Monitoring Agent")
 
     # Row for basic Spark app info
-    with gr.Row():
-        last_app = gr.Textbox(label="Last Spark Application ID", interactive=False)
-        last_launch = gr.Textbox(label="Last Job Launch Time", interactive=False)
+    last_app = gr.Textbox(label="Last Spark Application ID", interactive=False)
+    last_launch = gr.Textbox(label="Last Job Launch Time", interactive=False)
+    updated = gr.Textbox(label="Last Updated (UTC)", interactive=False)
 
     # Markdown sections for anomalies and tuning
     anomalies = gr.Markdown(label="Detected Anomalies")
@@ -509,8 +507,6 @@ with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
     # Also optionally trigger an immediate first UI update
     demo.load(fn=start_agent)
     demo.load(fn=get_ui_state, outputs=[last_app, last_launch, anomalies, tuning, updated])
-
-
 
 # ============================================================
 # Main
