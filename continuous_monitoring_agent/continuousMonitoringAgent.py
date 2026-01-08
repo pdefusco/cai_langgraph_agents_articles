@@ -367,9 +367,9 @@ def agent_loop():
         if last_launch_time:
             where_clause = f"""
             WHERE (
-                launchTime > TIMESTAMP('{last_launch_time}')
+                TIMESTAMP(launchTime) > TIMESTAMP('{last_launch_time}')
                 OR (
-                    launchTime = TIMESTAMP('{last_launch_time}')
+                    TIMESTAMP(launchTime) = TIMESTAMP('{last_launch_time}')
                     AND appId > '{last_app_id}'
                 )
             )
