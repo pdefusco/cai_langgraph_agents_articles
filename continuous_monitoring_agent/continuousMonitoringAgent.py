@@ -409,6 +409,8 @@ def agent_loop():
 # ============================================================
 
 def get_ui_state():
+    print("TIMER TICK FIRED", flush=True)
+
     with UI_STATE_LOCK:
         s = deepcopy(UI_STATE)
 
