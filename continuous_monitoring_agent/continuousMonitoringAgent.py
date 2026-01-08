@@ -149,7 +149,7 @@ def save_checkpoint(spark, launch_time, app_id):
         INSERT INTO {CHECKPOINT_TABLE}
         PARTITION (agent_name='{AGENT_NAME}', agent_version='{AGENT_VERSION}')
         VALUES (
-            TIMESTAMP('{launch_time}'),
+            '{launch_time}',
             '{app_id}',
             TIMESTAMP('{datetime.utcnow()}')
         )
@@ -396,6 +396,10 @@ def agent_loop():
         where_clause = ""
         if last_launch_time:
             where_clause = f"WHERE TIMESTAMP(ts) > TIMESTAMP('{last_launch_time}')"
+
+        print("LAST LAUNCH TIME FROM CHECKPOINT TABLE: ", last_launch_time)
+        print("SELECT TIMESTAMP TS FROM METRICS TABLE")
+        spark.sql(f"""SELECT TIMESTAMP(ts) FROM {SPARK_METRICS_TABLE}""").show()
 
         start = time.time()
         # Aggregate metrics per Spark application
