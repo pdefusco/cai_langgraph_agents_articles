@@ -486,7 +486,7 @@ with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
 
     gr.Markdown("## 🔍 Spark Performance Monitoring Agent")
 
-    metrics_table = gr.Markdown(label="<h3>📊 Spark Metrics by App")
+    metrics_table = gr.HTML(label="📊 Spark Metrics by App")
     anomalies = gr.Markdown(label="<h3>🚨 Detected Anomalies")
     tuning = gr.Markdown(label="<h3>🛠️ Tuning Recommendations")
     updated = gr.Textbox(label="Last Updated (UTC)", interactive=False)
