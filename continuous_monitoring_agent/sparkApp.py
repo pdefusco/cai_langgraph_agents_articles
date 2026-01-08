@@ -50,6 +50,7 @@ spark = (SparkSession
   .getOrCreate() )
 
 app_id = spark.sparkContext.applicationId
+print(f"Executing App ID: {app_id}")
 
 taskmetrics = TaskMetrics(spark)
 
