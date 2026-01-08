@@ -357,13 +357,31 @@ def format_tuning(recs: list[dict]) -> str:
         return "ℹ️ No tuning recommendations."
 
     lines = ["### 🛠️ Tuning Recommendations"]
+
     for r in recs:
-        opts = ", ".join(r["recommended_spark_submit"]) or "None"
         lines.append(
-            f"- **App** `{r['spark_application_id']}` | "
-            f"**Issue** `{r['issue']}`\n"
-            f"  - Suggested flags: `{opts}`"
+            f"\n#### 📌 App `{r['spark_application_id']}`"
+            f"\n- **Issue**: `{r['issue']}`"
         )
+
+        # Spark-submit flags
+        if r.get("recommended_spark_submit"):
+            lines.append("\n**Suggested spark-submit flags:**")
+            for opt in r["recommended_spark_submit"]:
+                lines.append(f"- `{opt}`")
+        else:
+            lines.append("\n_No spark-submit flags generated._")
+
+        # Detailed LLM reasoning
+        details = r.get("details", [])
+        if details:
+            lines.append("\n**Why these changes:**")
+            for d in details:
+                lines.append(
+                    f"- **{d['config']} = {d['value']}**  \n"
+                    f"  _Reason_: {d['reason']}"
+                )
+
     return "\n".join(lines)
 
 # ============================================================
