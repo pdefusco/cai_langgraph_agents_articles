@@ -390,6 +390,9 @@ def format_tuning(recs: list[dict]) -> str:
 
 def agent_loop():
     while True:
+        spark.sql("CLEAR CACHE")
+        spark.catalog.refreshTable(SPARK_METRICS_TABLE)
+
         df = spark.sql(f"""
             SELECT
                 appId,
