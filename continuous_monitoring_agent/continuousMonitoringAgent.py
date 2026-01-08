@@ -33,7 +33,7 @@ AGENT_NAME = "spark_perf_agent"
 AGENT_VERSION = "v1"
 POLL_INTERVAL_SECONDS = 300
 
-SPARK_METRICS_TABLE = "default.spark_tasl_metrics"
+SPARK_METRICS_TABLE = "default.spark_task_metrics"
 CHECKPOINT_TABLE = "agent_checkpoints"
 
 # ============================================================
