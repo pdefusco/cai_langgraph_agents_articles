@@ -48,9 +48,9 @@ Runtimes:
   PBJ Workbench	Python 3.10	Standard 2025.09
 ```
 
-![alt text](img/create-project-1.png)
+![alt text](img/proj-1.png)
 
-![alt text](img/create-project-2.png)
+![alt text](img/proj-2.png)
 
 #### 2. Create the Project Environment Variables with Secrets
 
@@ -95,18 +95,24 @@ pip3 install -r spark_continuous_monitoring_agent/requirements.txt
 
 ![alt text](img/install-requirements.png)
 
-Run ```sparkApp.py``` at least 10 times in order to populate the Hive External Table with Spark Metrics from each run. This will just take a few minutes.
+Open ```sparkApp.py``` and familiarize yourself with the code. Update the hadoopFileSystem variable at line 49 according to your data lake bucket. If you have trouble finding this value, contact your CDP Admin.
+
+Run the script at least 10 times in order to populate the Hive External Table with Spark Metrics from each run. This will just take a few minutes.
+
+![alt text](img/spark-app.png)
 
 #### 4. Create and Populate the Chroma Vector Database
 
 In the same session, run ```ingestChroma.py```. No code changes are required.
+
+![alt text](img/run-chroma-ingest.png)
 
 #### 5. Deploy the Gradio LangGraph Application
 
 Navigate to Applications and launch the Gradio LangGraph App with the following settings.
 
 ```
-Name: Continuous Monitoring App
+Name: Continuous Spark Monitoring Agents
 Kernel: PBJ Workbench	Python 3.10	Standard 2025.09
 Spark Runtime Addon: Spark 3.5.1
 Resource Profile: 2 vCPU / 8 iGB Mem / 0 GPU
@@ -119,9 +125,14 @@ Script: spark_continuous_monitoring_agent/continuousMonitoringAgent.py
 
 #### 6. Interact with the Agent App
 
-Open the Application and wait a few seconds until the list of spark applications is output to the screen. In the main table all spark application runs are presented along with key performance metrics. Directly below, applications with performance issues are flagged and a recommendation from the llm is presented. Notice that the recommendation is filtered by internal best practices and playbooks. This is where internal policies and recommendations are stored and consulted by the llm before outputting a final recommendation, in order to guard against potentially harmful tunings.
+Open the Application and wait a few seconds until the list of spark applications is output to the screen. In the main table all spark application runs are presented along with key performance metrics.
 
-![alt text](img/app-output.png)
+Directly below, applications with performance issues are flagged and a recommendation from the llm is presented. Notice that the recommendation is filtered by internal best practices and playbooks. This is where internal policies and recommendations are stored and consulted by the llm before outputting a final recommendation, in order to guard against potentially harmful tunings.
+
+![alt text](img/app-output-1.png)
+
+![alt text](img/app-output-2.png)
+
 
 ## Summary & Next Steps
 
