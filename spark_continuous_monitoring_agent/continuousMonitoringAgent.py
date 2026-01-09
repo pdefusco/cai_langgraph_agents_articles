@@ -308,6 +308,68 @@ def rag_tuning(state: AgentState) -> AgentState:
     return {"tuning_recommendations": tuning_recommendations}
 
 # ============================================================
+# Guardrail: Cap shuffle partitions
+# ============================================================
+
+def shuffle_partitions_guardrail(state: AgentState) -> AgentState:
+    """
+    Enforces a hard numeric cap on spark.sql.shuffle.partitions
+    across all LLM-generated recommendations.
+    """
+
+    MAX_SHUFFLE_PARTITIONS = 500
+    MIN_SHUFFLE_PARTITIONS = 50
+
+    updated_recommendations = []
+
+    for rec in state.get("tuning_recommendations", []):
+        updated_details = []
+
+        for d in rec.get("details", []):
+            if d.get("config") == "spark.sql.shuffle.partitions":
+                try:
+                    original = int(d["value"])
+                    capped = max(
+                        MIN_SHUFFLE_PARTITIONS,
+                        min(original, MAX_SHUFFLE_PARTITIONS),
+                    )
+
+                    if capped != original:
+                        print(
+                            f"[GUARDRAIL] Capping spark.sql.shuffle.partitions "
+                            f"{original} → {capped} "
+                            f"for app {rec['spark_application_id']}"
+                        )
+
+                        d = {
+                            **d,
+                            "value": str(capped),
+                            "reason": (
+                                d.get("reason", "")
+                                + f" (guardrail applied: capped from {original} to {capped})"
+                            ),
+                        }
+                except Exception:
+                    # Non-numeric values are ignored (could also be dropped)
+                    pass
+
+            updated_details.append(d)
+
+        # Rebuild spark-submit flags from guarded details
+        updated_flags = [
+            f"--conf {d['config']}={d['value']}"
+            for d in updated_details
+        ]
+
+        updated_recommendations.append({
+            **rec,
+            "details": updated_details,
+            "recommended_spark_submit": updated_flags,
+        })
+
+    return {"tuning_recommendations": updated_recommendations}
+
+# ============================================================
 # Routing
 # ============================================================
 
@@ -321,6 +383,7 @@ def route(state: AgentState):
 builder = StateGraph(AgentState)
 builder.add_node("analyze", analyze_metrics)
 builder.add_node("rag_tuning", rag_tuning)
+builder.add_node("shuffle_guardrail", shuffle_partitions_guardrail)
 
 builder.set_entry_point("analyze")
 
@@ -330,7 +393,8 @@ builder.add_conditional_edges(
     {"rag_tuning": "rag_tuning", END: END},
 )
 
-builder.add_edge("rag_tuning", END)
+builder.add_edge("rag_tuning", "shuffle_guardrail")
+builder.add_edge("shuffle_guardrail", END)
 
 graph = builder.compile()
 
