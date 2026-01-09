@@ -4,7 +4,9 @@
 
 ## Objective
 
-In this tutorial you will learn how to implement a MultiAgent System in Cloudera AI leveraging Chroma, Nvidia Nemotron 49B, Retrieval QA E5, LangGraph, and the Cloudera AI Inference Service, in order to build a Continuous Monitoring system for Spark pipelines subject to guardrails and internal best practices.
+In this tutorial, you will implement a MultiAgent System to continuously monitor Spark pipelines, flag performance anomalies, query internal documentation, playbooks and best practices, and output a moderated tuning recommendation. You will build this in Cloudera AI leveraging Chroma, Nvidia Nemotron 49B, Retrieval QA E5, LangGraph, and the Cloudera AI Inference Service.
+
+This tutorial can serve as a reusable template to build MultiAgent Systems that autonomously poll internal or external system and process the information against internal knowledge sources to recommend a best course of action.
 
 ### Motivation
 
@@ -136,7 +138,9 @@ Directly below, applications with performance issues are flagged and a recommend
 
 ## Summary & Next Steps
 
-In this tutorial, you implemented a MultiAgent System for Spark Observability using Chroma, LangGraph, Gradio, and Nvidia Nemotron 49B in the Cloudera AI Inference Service. More generally, this end-to-end workflow can be used as reference architecture for Agentic Applications in Cloudera AI.
+In this tutorial, you implemented a MultiAgent System to continuously monitor Spark pipelines, flag performance anomalies, query internal documentation, playbooks and best practices, and output a moderated tuning recommendation. You built this in Cloudera AI leveraging Chroma, Nvidia Nemotron 49B, Retrieval QA E5, LangGraph, and the Cloudera AI Inference Service.
+
+This tutorial can serve as a reusable template to build MultiAgent Systems that autonomously poll internal or external system and process the information against internal knowledge sources to recommend a best course of action.
 
 **Additional Resources & Tutorials**
 Explore these helpful tutorials and blogs to learn more about Cloudera AI, the AI Registry, and AI Inference Service:
