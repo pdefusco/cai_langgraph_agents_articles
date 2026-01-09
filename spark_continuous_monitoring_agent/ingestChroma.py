@@ -93,7 +93,7 @@ def chunk_text(text, max_len=250):
 # Load best practices from file
 # -------------------------
 BEST_PRACTICE_FILE = os.path.abspath(
-    os.path.join(os.getcwd(), "spark_best_practices.txt")
+    os.path.join(os.getcwd(), "/home/cdsw/spark_continuous_monitoring_agent/spark_best_practices.txt")
 )
 
 def load_best_practice_text(path: str) -> str:
@@ -109,7 +109,7 @@ def load_best_practice_text(path: str) -> str:
 # Internal playbook loader
 # -------------------------
 INTERNAL_PLAYBOOK_FILE = os.path.abspath(
-    os.path.join(os.getcwd(), "spark_internal_playbook.txt")
+    os.path.join(os.getcwd(), "/home/cdsw/spark_continuous_monitoring_agent/spark_internal_playbook.txt")
 )
 
 def load_internal_playbook(path: str) -> str:
