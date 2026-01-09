@@ -41,7 +41,7 @@ All artifacts are included in this Git repository. You can clone or fork it as n
 Create a project with the following entries:
 
 ```
-Project Name: simple agent with AIIS and LangGraph
+Project Name: Spark Observability MultiAgent System
 Project Description: Project to implement a MultiAgent System for Spark Observability.
 Initial Setup: -> GIT -> HTTPS -> https://github.com/pdefusco/cai_langgraph_agents_articles.git
 Runtimes:
