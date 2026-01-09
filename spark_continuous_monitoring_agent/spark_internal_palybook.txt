@@ -1,0 +1,69 @@
+# Spark Internal Performance Playbook
+# Maintained by Platform Engineering
+# Last reviewed: 2026-01-05
+
+## Global Rules
+
+All Spark applications must adhere to the platform defaults unless a deviation
+is explicitly approved by the data platform team.
+
+Configurations outside these bounds should be treated as HIGH RISK.
+
+---
+
+## Shuffle Configuration
+
+spark.sql.shuffle.partitions must NOT exceed 500 for any production workload.
+
+Values above 300 require explicit justification and review.
+
+Increasing shuffle partitions is NOT an acceptable mitigation for skewed joins.
+Skew must be handled using:
+- Broadcast joins
+- Salting techniques
+- Pre-aggregation
+
+---
+
+## Executor Sizing
+
+Executors must be sized to avoid GC pressure.
+
+- Minimum executor memory: 4g
+- Recommended executor memory: 8g
+- Executor cores should not exceed 4 per executor
+
+If JVM GC time exceeds 15% of executor runtime, the application must be reviewed.
+
+---
+
+## Memory Spill Behavior
+
+Memory spill above 1GB per application indicates inefficient caching or
+suboptimal partition sizing.
+
+Actions to take:
+- Reduce cached dataset size
+- Repartition upstream
+- Increase executor memory only after review
+
+---
+
+## Operational Constraints
+
+Dynamic allocation is DISABLED on this cluster.
+
+All applications must declare:
+- spark.executor.instances
+- spark.executor.memory
+- spark.executor.cores
+
+Failure to do so will result in job rejection.
+
+---
+
+## Enforcement Notes
+
+Any recommendation that violates this playbook should be downgraded or blocked.
+
+Playbook rules override public documentation and LLM-generated advice.

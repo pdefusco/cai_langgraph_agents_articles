@@ -176,6 +176,8 @@ LLM_CDP_TOKEN = os.environ["LLM_CDP_TOKEN"]
 
 client = chromadb.PersistentClient()
 spark_col = client.get_or_create_collection("spark_tuning")
+best_practice_col = client.get_or_create_collection("spark_best_practices")
+
 
 llm = ChatOpenAI(
     model=LLM_MODEL_ID,
@@ -228,6 +230,32 @@ def build_rag_query(anomaly: dict) -> str:
         "Spark performance tuning for executor memory, "
         "parallelism, and shuffle behavior"
     )
+
+def validate_against_best_practices(config: str, value: str) -> list[str]:
+    """
+    Queries best-practice corpus for potential conflicts.
+    Returns a list of warnings (empty if none).
+    """
+
+    query = (
+        f"Best practices and recommended ranges for Spark config "
+        f"{config} set to {value}"
+    )
+
+    emb = get_passage_embedding(query)
+
+    results = best_practice_col.query(
+        query_embeddings=[emb],
+        n_results=3,
+    )
+
+    warnings = []
+    for doc in results.get("documents", [[]])[0]:
+        if doc:
+            warnings.append(doc)
+
+    return warnings
+
 
 # ============================================================
 # LLM-based Spark recommendation
@@ -370,6 +398,91 @@ def shuffle_partitions_guardrail(state: AgentState) -> AgentState:
     return {"tuning_recommendations": updated_recommendations}
 
 # ============================================================
+# Guardrail Layer 2: Best-practice validation (advisory)
+# ============================================================
+
+def best_practice_guardrail(state: AgentState) -> AgentState:
+    updated_recommendations = []
+
+    for rec in state.get("tuning_recommendations", []):
+        updated_details = []
+
+        for d in rec.get("details", []):
+            warnings = validate_against_best_practices(
+                d["config"], d["value"]
+            )
+
+            if warnings:
+                d = {
+                    **d,
+                    "best_practice_warnings": warnings[:2],  # cap noise
+                }
+
+                print(
+                    f"[BEST-PRACTICE] {d['config']}={d['value']} "
+                    f"flagged for app {rec['spark_application_id']}"
+                )
+
+            updated_details.append(d)
+
+        updated_recommendations.append({
+            **rec,
+            "details": updated_details,
+        })
+
+    return {"tuning_recommendations": updated_recommendations}
+
+# -------------------------
+# Internal playbook Chroma collection
+# -------------------------
+internal_playbook_col = client.get_or_create_collection("spark_internal_playbook")
+
+def internal_playbook_guardrail(state: AgentState) -> AgentState:
+    """
+    Queries the internal playbook corpus for advisory flags.
+    Adds warnings or recommended constraints to the tuning recommendations.
+    """
+    updated_recommendations = []
+
+    for rec in state.get("tuning_recommendations", []):
+        updated_details = []
+
+        for d in rec.get("details", []):
+            # Query the playbook vector DB
+            query = f"Internal playbook guidance for {d['config']}={d['value']}"
+            emb = get_passage_embedding(query)
+
+            results = internal_playbook_col.query(
+                query_embeddings=[emb],
+                n_results=3,
+            )
+
+            warnings = []
+            for doc in results.get("documents", [[]])[0]:
+                if doc:
+                    warnings.append(doc)
+
+            if warnings:
+                d = {
+                    **d,
+                    "internal_playbook_warnings": warnings[:2],
+                }
+                print(
+                    f"[PLAYBOOK] {d['config']}={d['value']} flagged by internal playbook "
+                    f"for app {rec['spark_application_id']}"
+                )
+
+            updated_details.append(d)
+
+        updated_recommendations.append({
+            **rec,
+            "details": updated_details,
+        })
+
+    return {"tuning_recommendations": updated_recommendations}
+
+
+# ============================================================
 # Routing
 # ============================================================
 
@@ -384,6 +497,8 @@ builder = StateGraph(AgentState)
 builder.add_node("analyze", analyze_metrics)
 builder.add_node("rag_tuning", rag_tuning)
 builder.add_node("shuffle_guardrail", shuffle_partitions_guardrail)
+builder.add_node("best_practice_guardrail", best_practice_guardrail)
+builder.add_node("internal_playbook_guardrail", internal_playbook_guardrail)
 
 builder.set_entry_point("analyze")
 
@@ -394,7 +509,10 @@ builder.add_conditional_edges(
 )
 
 builder.add_edge("rag_tuning", "shuffle_guardrail")
-builder.add_edge("shuffle_guardrail", END)
+builder.add_edge("shuffle_guardrail", "best_practice_guardrail")
+builder.add_edge("best_practice_guardrail", "internal_playbook_guardrail")
+builder.add_edge("internal_playbook_guardrail", END)
+
 
 graph = builder.compile()
 
@@ -445,6 +563,18 @@ def format_tuning(recs: list[dict]) -> str:
                     f"- **{d['config']} = {d['value']}**  \n"
                     f"  _Reason_: {d['reason']}"
                 )
+
+                if "best_practice_warnings" in d:
+                    lines.append("  ⚠️ **Best-practice notes:**")
+                    for w in d["best_practice_warnings"]:
+                        lines.append(f"    - {w}")
+
+                if "internal_playbook_warnings" in d:
+                    lines.append("  ⚠️ **Internal playbook notes:**")
+                    for w in d["internal_playbook_warnings"]:
+                        lines.append(f"    - {w}")
+
+
 
     return "\n".join(lines)
 

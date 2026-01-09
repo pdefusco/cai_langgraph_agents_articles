@@ -1,0 +1,11 @@
+spark.sql.shuffle.partitions should usually be set to 2 to 4 times the total number of executor cores.
+
+Values of spark.sql.shuffle.partitions above 1000 are rarely necessary and often indicate data skew or poor partitioning.
+
+Increasing shuffle partitions does not resolve skewed joins and may increase scheduling overhead.
+
+For most workloads, start with spark.sql.shuffle.partitions equal to total executor cores and tune incrementally.
+
+Large shuffle volumes should first be addressed by filtering early, reducing data size, or fixing skew.
+
+Excessive shuffle partitions can increase task scheduling time and driver overhead.
