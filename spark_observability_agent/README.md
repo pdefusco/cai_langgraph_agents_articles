@@ -25,7 +25,6 @@ You can reproduce this tutorial in your CAI environment with the following:
 * A CAI Environment in Private or Public Cloud.
 * An AI Registry deployment.
 * An AI Inference Service deployment with Nemotron or another LLM deployed as an endpoint.
-* You should have your CDP Workload User's Access Keys handy as you will need them to deploy the endpoint.
 
 ## Useful Documentation Links
 
