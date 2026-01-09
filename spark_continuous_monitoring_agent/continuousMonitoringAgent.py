@@ -59,7 +59,6 @@ from chromadb.config import Settings
 # ============================================================
 # Spark session
 # ============================================================
-
 spark = (
     SparkSession.builder
     .appName("spark-performance-agent-ui")
@@ -72,7 +71,6 @@ spark = (
 # ============================================================
 # Constants
 # ============================================================
-
 AGENT_NAME = "spark_perf_agent"
 AGENT_VERSION = "v2"
 POLL_INTERVAL_SECONDS = 30
@@ -82,7 +80,6 @@ SPARK_METRICS_TABLE = "default.spark_task_metrics"
 # ============================================================
 # Shared UI State
 # ============================================================
-
 class UIState(TypedDict):
     anomaly_md: str
     tuning_md: str
@@ -101,7 +98,6 @@ UI_STATE_LOCK = threading.Lock()
 # ============================================================
 # LangGraph State
 # ============================================================
-
 class AgentState(TypedDict):
     metrics: List[dict]
     anomalies: Optional[List[dict]]
@@ -111,7 +107,6 @@ class AgentState(TypedDict):
 # ============================================================
 # Node 1: Deterministic anomaly detection
 # ============================================================
-
 def analyze_metrics(state: AgentState) -> AgentState:
     anomalies = []
 
@@ -178,7 +173,6 @@ client = chromadb.PersistentClient()
 spark_col = client.get_or_create_collection("spark_tuning")
 best_practice_col = client.get_or_create_collection("spark_best_practices")
 
-
 llm = ChatOpenAI(
     model=LLM_MODEL_ID,
     base_url=LLM_ENDPOINT_BASE_URL,
@@ -210,7 +204,6 @@ def get_passage_embedding(text: str):
 # ============================================================
 # Improved RAG query construction
 # ============================================================
-
 def build_rag_query(anomaly: dict) -> str:
     metric = anomaly["metric"]
 
@@ -260,7 +253,6 @@ def validate_against_best_practices(config: str, value: str) -> list[str]:
 # ============================================================
 # LLM-based Spark recommendation
 # ============================================================
-
 def llm_recommend_spark_configs(anomaly: dict, docs: list[str]) -> list[dict]:
     system = SystemMessage(
         content=(
@@ -300,7 +292,6 @@ Return ONLY valid JSON in this format:
 # ============================================================
 # Node 2: RAG tuning (LLM-driven)
 # ============================================================
-
 def rag_tuning(state: AgentState) -> AgentState:
     tuning_recommendations = []
 
@@ -338,7 +329,6 @@ def rag_tuning(state: AgentState) -> AgentState:
 # ============================================================
 # Guardrail: Cap shuffle partitions
 # ============================================================
-
 def shuffle_partitions_guardrail(state: AgentState) -> AgentState:
     """
     Enforces a hard numeric cap on spark.sql.shuffle.partitions
@@ -400,7 +390,6 @@ def shuffle_partitions_guardrail(state: AgentState) -> AgentState:
 # ============================================================
 # Guardrail Layer 2: Best-practice validation (advisory)
 # ============================================================
-
 def best_practice_guardrail(state: AgentState) -> AgentState:
     updated_recommendations = []
 
@@ -485,14 +474,12 @@ def internal_playbook_guardrail(state: AgentState) -> AgentState:
 # ============================================================
 # Routing
 # ============================================================
-
 def route(state: AgentState):
     return "rag_tuning" if state.get("anomalies") else END
 
 # ============================================================
 # Build graph
 # ============================================================
-
 builder = StateGraph(AgentState)
 builder.add_node("analyze", analyze_metrics)
 builder.add_node("rag_tuning", rag_tuning)
@@ -519,7 +506,6 @@ graph = builder.compile()
 # ============================================================
 # Formatting helpers
 # ============================================================
-
 def format_anomalies(anomalies: list[dict]) -> str:
     if not anomalies:
         return "✅ No anomalies detected."
@@ -581,7 +567,6 @@ def format_tuning(recs: list[dict]) -> str:
 # ============================================================
 # Agent loop
 # ============================================================
-
 def agent_loop():
     while True:
         spark.sql("CLEAR CACHE")
@@ -626,7 +611,6 @@ def agent_loop():
 # ============================================================
 # Gradio UI
 # ============================================================
-
 def get_ui_state():
     with UI_STATE_LOCK:
         s = deepcopy(UI_STATE)

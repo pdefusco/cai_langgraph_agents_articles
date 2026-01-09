@@ -1,6 +1,6 @@
 # How to Implement a Spark Continuous Monitoring MultiAgent System in CAI with Chroma, Nvidia Nemotron 49B, Retrieval QA E5, Cloudera AI Inference Service and LangGraph
 
-![alt text](img/spark-obs-agent-sol-arch.png)
+![alt text](img/continuous-agent-sol-arch.png)
 
 ## Objective
 
