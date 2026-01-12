@@ -38,6 +38,8 @@
 #***************************************************************************/
 
 import json
+import time
+import threading
 import gradio as gr
 from typing import TypedDict, Annotated
 
@@ -76,8 +78,10 @@ LLM_MODEL_ID = os.environ["LLM_MODEL_ID"]
 LLM_ENDPOINT_BASE_URL = os.environ["LLM_ENDPOINT_BASE_URL"]
 LLM_CDP_TOKEN = os.environ["LLM_CDP_TOKEN"]
 
+POLL_INTERVAL_SECONDS = 30
+
 # =========================================================
-# GLOBAL CDE OBJECTS (SHARED STATE)
+# GLOBAL CDE OBJECTS
 # =========================================================
 
 CDE_CONNECTION = None
@@ -96,47 +100,32 @@ class AgentState(TypedDict):
 
 @tool
 def connect_to_cde(jobs_api_url: str, user: str, password: str) -> str:
-    """Connect to a CDE Virtual Cluster."""
     global CDE_CONNECTION, CDE_MANAGER
-
-    CDE_CONNECTION = cdeconnection.CdeConnection(
-        jobs_api_url, user, password
-    )
+    CDE_CONNECTION = cdeconnection.CdeConnection(jobs_api_url, user, password)
     CDE_CONNECTION.setToken()
     CDE_MANAGER = cdemanager.CdeClusterManager(CDE_CONNECTION)
-
     return "Connected to CDE."
 
 
 @tool
 def validate_job_runs() -> dict:
-    """Return all job runs."""
     return json.loads(CDE_MANAGER.listJobRuns())
 
 
 @tool
 def download_spark_event_logs(job_run_id: str) -> str:
-    """Download and parse Spark event logs."""
     logs = CDE_MANAGER.downloadJobRunLogs(job_run_id, "driver/event")
-    parsed = utils.sparkEventLogParser(logs)
-    return json.dumps(parsed, indent=2)
+    return json.dumps(utils.sparkEventLogParser(logs), indent=2)
 
 
 @tool
 def download_spark_script(resource_name: str, file_name: str) -> str:
-    """Download Spark script from a CDE Files Resource."""
     return CDE_MANAGER.downloadFileFromResource(resource_name, file_name)
 
 
 @tool
-def create_new_spark_job(
-    job_name: str,
-    resource_name: str,
-    application_file_name: str,
-) -> str:
-    """Create a new Spark job in CDE."""
+def create_new_spark_job(job_name: str, resource_name: str, application_file_name: str) -> str:
     spark_job = cdejob.CdeSparkJob(CDE_CONNECTION)
-
     job_def = spark_job.createJobDefinition(
         job_name,
         resource_name,
@@ -144,14 +133,12 @@ def create_new_spark_job(
         executorMemory="2g",
         executorCores=2,
     )
-
     CDE_MANAGER.createJob(job_def)
-    return f"Created Spark job '{job_name}'."
+    return f"Created job '{job_name}'."
 
 
 @tool
 def run_cde_job(job_name: str) -> str:
-    """Run a Spark job."""
     CDE_MANAGER.runJob(job_name)
     return f"Submitted job '{job_name}'."
 
@@ -209,34 +196,57 @@ Each execution:
    - Download the Spark script from the CDE resource
    - Identify the root cause
    - Generate a corrected Spark script
-   - Create a NEW Spark job with a new name
+   - Create a NEW Spark job
    - Run the new Spark job
 
 Do not retry more than once.
 """
 
 # =========================================================
-# CORE EXECUTION FUNCTION
+# CORE EXECUTION
 # =========================================================
 
 def run_monitor():
-    # Run LangGraph once
-    app.invoke(
-        {
-            "messages": [
-                SystemMessage(content=SYSTEM_PROMPT),
-                HumanMessage(
-                    content=(
-                        f"Monitor job '{JOB_NAME}'. "
-                        f"Resource '{RESOURCE_NAME}', "
-                        f"Script '{APPLICATION_FILE_NAME}'."
-                    )
-                ),
-            ]
-        }
-    )
+    try:
+        app.invoke(
+            {
+                "messages": [
+                    SystemMessage(content=SYSTEM_PROMPT),
+                    HumanMessage(
+                        content=(
+                            f"Monitor job '{JOB_NAME}'. "
+                            f"Resource '{RESOURCE_NAME}', "
+                            f"Script '{APPLICATION_FILE_NAME}'."
+                        )
+                    ),
+                ]
+            }
+        )
+    except Exception as e:
+        print("Agent execution error:", e)
 
-    # Fetch latest job status for UI
+# =========================================================
+# BACKGROUND SCHEDULER (30s)
+# =========================================================
+
+def agent_loop():
+    while True:
+        run_monitor()
+        time.sleep(POLL_INTERVAL_SECONDS)
+
+# =========================================================
+# INITIALIZATION
+# =========================================================
+
+connect_to_cde(JOBS_API_URL, WORKLOAD_USER, WORKLOAD_PASSWORD)
+
+threading.Thread(target=agent_loop, daemon=True).start()
+
+# =========================================================
+# GRADIO UI
+# =========================================================
+
+def ui_refresh():
     job_runs = json.loads(CDE_MANAGER.listJobRuns())
     latest = job_runs[-1] if job_runs else {}
 
@@ -254,15 +264,6 @@ def run_monitor():
 
     return status, script, logs
 
-# =========================================================
-# INITIAL CONNECTION
-# =========================================================
-
-connect_to_cde(JOBS_API_URL, WORKLOAD_USER, WORKLOAD_PASSWORD)
-
-# =========================================================
-# GRADIO UI
-# =========================================================
 
 with gr.Blocks(title="CDE Spark Job Monitor") as demo:
     gr.Markdown("## CDE Spark Job Monitor & Auto-Remediator")
@@ -271,14 +272,12 @@ with gr.Blocks(title="CDE Spark Job Monitor") as demo:
     script_box = gr.Code(label="Spark Script", language="python")
     logs_box = gr.Code(label="Spark Event Logs", language="json")
 
-    refresh_btn = gr.Button("Refresh (Run One Check)")
+    refresh_btn = gr.Button("Refresh Now")
 
     refresh_btn.click(
-        fn=run_monitor,
+        fn=ui_refresh,
         outputs=[status_box, script_box, logs_box],
     )
-
-demo.load()
 
 if __name__ == "__main__":
     demo.launch(
