@@ -93,6 +93,8 @@ CDE_MANAGER = None
 
 class AgentState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
+    improved_script: str | None
+
 
 # =========================================================
 # TOOLS
@@ -124,6 +126,64 @@ def download_spark_script(resource_name: str, file_name: str) -> str:
 
 
 @tool
+def create_files_resource(resource_name: str) -> str:
+    CDE_MANAGER.createResource(resource_name)
+    return f"Created new CDE files resource '{resource_name}'."
+
+def refine_spark_script(state: AgentState):
+    messages = state["messages"]
+
+    spark_script = None
+    spark_logs = None
+
+    for msg in messages:
+        if isinstance(msg, HumanMessage):
+            if "SPARK_SCRIPT:" in msg.content:
+                spark_script = msg.content.split("SPARK_SCRIPT:", 1)[1]
+            if "SPARK_LOGS:" in msg.content:
+                spark_logs = msg.content.split("SPARK_LOGS:", 1)[1]
+
+    prompt = [
+        SystemMessage(
+            content=(
+                "You are a senior Spark engineer.\n"
+                "Given a failed Spark application and its event logs:\n"
+                "- Identify the root cause\n"
+                "- Produce a corrected Spark script\n"
+                "- Preserve original intent and structure\n"
+                "- Return ONLY valid Python Spark code\n"
+            )
+        ),
+        HumanMessage(
+            content=(
+                f"SPARK SCRIPT:\n{spark_script}\n\n"
+                f"SPARK EVENT LOGS:\n{spark_logs}"
+            )
+        ),
+    ]
+
+    response = llm.invoke(prompt)
+
+    return {
+        "messages": messages + [response],
+        "improved_script": response.content,
+    }
+
+@tool
+def upload_spark_script(
+    resource_name: str,
+    file_name: str,
+    file_contents: str,
+) -> str:
+    CDE_MANAGER.uploadFileToResource(
+        resource_name,
+        file_name,
+        file_contents,
+    )
+    return f"Uploaded improved script to resource '{resource_name}'."
+
+
+@tool
 def create_new_spark_job(job_name: str, resource_name: str, application_file_name: str) -> str:
     spark_job = cdejob.CdeSparkJob(CDE_CONNECTION)
     job_def = spark_job.createJobDefinition(
@@ -151,9 +211,12 @@ TOOLS = [
     validate_job_runs,
     download_spark_event_logs,
     download_spark_script,
+    create_files_resource,
+    upload_spark_script,
     create_new_spark_job,
     run_cde_job,
 ]
+
 
 # =========================================================
 # LANGGRAPH SETUP
@@ -174,12 +237,32 @@ def route(state: AgentState):
     return "tools" if last.tool_calls else END
 
 graph = StateGraph(AgentState)
+
 graph.add_node("agent", agent)
 graph.add_node("tools", ToolNode(TOOLS))
+graph.add_node("refine_script", refine_spark_script)
+
 graph.set_entry_point("agent")
-graph.add_conditional_edges("agent", route, {"tools": "tools", END: END})
+
+graph.add_conditional_edges(
+    "agent",
+    route,
+    {
+        "tools": "tools",
+        END: END,
+    },
+)
+
 graph.add_edge("tools", "agent")
+
+# NEW: after logs + script are downloaded, refine
+graph.add_edge("agent", "refine_script")
+
+# After refinement, go back to tools (create resource, upload, job, run)
+graph.add_edge("refine_script", "tools")
+
 app = graph.compile()
+
 
 # =========================================================
 # SYSTEM PROMPT

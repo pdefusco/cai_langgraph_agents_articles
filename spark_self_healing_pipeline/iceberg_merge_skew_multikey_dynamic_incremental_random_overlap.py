@@ -133,11 +133,19 @@ else:
 spark.sql(f"DROP TABLE IF EXISTS {sourceTable} PURGE")
 df2.writeTo(sourceTable).using("iceberg").create()
 
+# 20% chance to use a bogus column name
+if random.random() < 0.9999:
+    source_ts_col = "source.fake_event_ts"
+    target_ts_col = "target.fake_event_ts"
+else:
+    source_ts_col = "source.event_ts"
+    target_ts_col = "target.event_ts"
+
 spark.sql(f"""
     MERGE INTO {targetTable} AS target
     USING {sourceTable} AS source
     ON target.id = source.id
-    WHEN MATCHED AND source.event_ts > target.event_ts THEN
+    WHEN MATCHED AND {source_ts_col} > {target_ts_col} THEN
       UPDATE SET *
     WHEN NOT MATCHED THEN
       INSERT *
