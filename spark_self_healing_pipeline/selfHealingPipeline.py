@@ -288,8 +288,17 @@ threading.Thread(target=agent_loop, daemon=True).start()
 # =========================================================
 
 def ui_refresh():
-    job_runs = json.loads(CDE_MANAGER.listJobRuns())
-    latest = job_runs[-1] if job_runs else {}
+    try:
+        result = CDE_MANAGER.listJobRuns()
+        if result == -1 or not result:
+            # API failed or returned nothing
+            return "ERROR fetching jobs", "", ""
+
+        job_runs = json.loads(result)
+        latest = job_runs[-1] if job_runs else {}
+    except Exception as e:
+        # catch JSON decoding or other unexpected errors
+        return f"ERROR: {str(e)}", "", ""
 
     status = latest.get("status", "UNKNOWN")
     run_id = latest.get("id", "")
@@ -298,19 +307,13 @@ def ui_refresh():
     logs = ""
 
     if run_id:
-        script = CDE_MANAGER.downloadFileFromResource(
-            RESOURCE_NAME,
-            APPLICATION_FILE_NAME,
-        )
+        script = download_spark_script(RESOURCE_NAME, APPLICATION_FILE_NAME)
 
     if status == "FAILED" and run_id:
-        logs_raw = CDE_MANAGER.downloadJobRunLogs(run_id, "driver/event")
-        logs = json.dumps(
-            utils.sparkEventLogParser(logs_raw),
-            indent=2,
-        )
+        logs = download_spark_event_logs(run_id)
 
     return status, script, logs
+
 
 
 with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator") as demo:
