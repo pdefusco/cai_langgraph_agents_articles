@@ -37,470 +37,242 @@
 # #  Author(s): Paul de Fusco
 #***************************************************************************/
 
-"""
-Continuous Spark Performance Monitoring Agent with Gradio UI
-"""
-
-import time
-import threading
-from datetime import datetime
-from typing import List, Optional, TypedDict
-from copy import deepcopy
 import json
-import os
 import gradio as gr
-from pyspark.sql import SparkSession
-from langgraph.graph import StateGraph, END
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage
-import chromadb
-from chromadb.config import Settings
+from typing import TypedDict, Annotated
 
-# ============================================================
-# Spark session
-# ============================================================
-
-spark = (
-    SparkSession.builder
-    .appName("spark-performance-agent-ui")
-    .config("spark.executor.cores", 2)
-    .config("spark.execuctor.memory", "4g")
-    .config("spark.kerberos.access.hadoopFileSystems","s3a://pdf-jan-26-buk-7c0e831f/")
-    .getOrCreate()
+from cdepy import (
+    cdeconnection,
+    cdemanager,
+    cdejob,
+    utils,
 )
 
-# ============================================================
-# Constants
-# ============================================================
+from langchain_openai import ChatOpenAI
+from langchain_core.tools import tool
+from langchain_core.messages import (
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+)
+from langgraph.graph.message import add_messages
+from langgraph.graph import StateGraph, END
+from langgraph.prebuilt import ToolNode
+import os
 
-AGENT_NAME = "spark_perf_agent"
-AGENT_VERSION = "v2"
-POLL_INTERVAL_SECONDS = 30
+# =========================================================
+# USER CONFIGURATION
+# =========================================================
 
-SPARK_METRICS_TABLE = "default.spark_task_metrics"
+JOBS_API_URL = os.environ["JOBS_API_URL"]
+WORKLOAD_USER = os.environ["WORKLOAD_USER"]
+WORKLOAD_PASSWORD = os.environ["WORKLOAD_PASSWORD"]
 
-# ============================================================
-# Shared UI State
-# ============================================================
+JOB_NAME = os.environ["JOB_NAME"]
+RESOURCE_NAME = os.environ["RESOURCE_NAME"]
+APPLICATION_FILE_NAME = os.environ["APPLICATION_FILE_NAME"]
 
-class UIState(TypedDict):
-    anomaly_md: str
-    tuning_md: str
-    last_updated: Optional[str]
-    aggregated_metrics_df: Optional[object]
+# =========================================================
+# GLOBAL CDE OBJECTS (SHARED STATE)
+# =========================================================
 
-UI_STATE: UIState = {
-    "anomaly_md": "No anomalies detected yet.",
-    "tuning_md": "No tuning recommendations yet.",
-    "last_updated": "N/A",
-    "aggregated_metrics_df": None,
-}
+CDE_CONNECTION = None
+CDE_MANAGER = None
 
-UI_STATE_LOCK = threading.Lock()
-
-# ============================================================
-# LangGraph State
-# ============================================================
+# =========================================================
+# LANGGRAPH STATE
+# =========================================================
 
 class AgentState(TypedDict):
-    metrics: List[dict]
-    anomalies: Optional[List[dict]]
-    tuning_recommendations: Optional[List[dict]]
-    agent_version: str
+    messages: Annotated[list[BaseMessage], add_messages]
 
-# ============================================================
-# Node 1: Deterministic anomaly detection
-# ============================================================
+# =========================================================
+# TOOLS
+# =========================================================
 
-def analyze_metrics(state: AgentState) -> AgentState:
-    anomalies = []
+@tool
+def connect_to_cde(jobs_api_url: str, user: str, password: str) -> str:
+    """Connect to a CDE Virtual Cluster."""
+    global CDE_CONNECTION, CDE_MANAGER
 
-    for row in state["metrics"]:
-        if row.get("shuffleBytesWritten", 0) > 1024:
-            anomalies.append({
-                "spark_application_id": str(row["appId"]),
-                "metric": "shuffleBytesWritten",
-                "value": float(row["shuffleBytesWritten"]),
-                "threshold": 1024,
-                "severity": "high",
-            })
+    CDE_CONNECTION = cdeconnection.CdeConnection(
+        jobs_api_url, user, password
+    )
+    CDE_CONNECTION.setToken()
+    CDE_MANAGER = cdemanager.CdeClusterManager(CDE_CONNECTION)
 
-        jvm = row.get("jvmGCTime")
-        run = row.get("executorRunTime")
-        if run and run > 0:
-            gc_pct = float(jvm / run * 100)
-            if gc_pct > 20:
-                anomalies.append({
-                    "spark_application_id": str(row["appId"]),
-                    "metric": "gc_time_pct",
-                    "value": gc_pct,
-                    "threshold": 20,
-                    "severity": "medium",
-                })
-
-    return {"anomalies": anomalies}
-
-# ============================================================
-# Chroma + LLM setup
-# ============================================================
-import re
-import json
-
-def extract_json(text: str):
-    if not text:
-        raise ValueError("Empty LLM response")
-
-    # Remove code fences
-    text = text.strip()
-    if text.startswith("```"):
-        text = re.sub(r"^```(?:json)?", "", text)
-        text = re.sub(r"```$", "", text)
-        text = text.strip()
-
-    # Extract first JSON array or object
-    match = re.search(r"(\[.*?\]|\{.*?\})", text, re.DOTALL)
-    if not match:
-        raise ValueError("No JSON found in LLM output")
-
-    json_text = match.group(1)
-
-    # Remove JS-style comments
-    json_text = re.sub(r"//.*", "", json_text)
-
-    return json.loads(json_text)
+    return "Connected to CDE."
 
 
-LLM_MODEL_ID = os.environ["LLM_MODEL_ID"]
-LLM_ENDPOINT_BASE_URL = os.environ["LLM_ENDPOINT_BASE_URL"]
-LLM_CDP_TOKEN = os.environ["LLM_CDP_TOKEN"]
+@tool
+def validate_job_runs() -> dict:
+    """Return all job runs."""
+    return json.loads(CDE_MANAGER.listJobRuns())
 
-client = chromadb.PersistentClient()
-spark_col = client.get_or_create_collection("spark_tuning")
+
+@tool
+def download_spark_event_logs(job_run_id: str) -> str:
+    """Download and parse Spark event logs."""
+    logs = CDE_MANAGER.downloadJobRunLogs(job_run_id, "driver/event")
+    parsed = utils.sparkEventLogParser(logs)
+    return json.dumps(parsed, indent=2)
+
+
+@tool
+def download_spark_script(resource_name: str, file_name: str) -> str:
+    """Download Spark script from a CDE Files Resource."""
+    return CDE_MANAGER.downloadFileFromResource(resource_name, file_name)
+
+
+@tool
+def create_new_spark_job(
+    job_name: str,
+    resource_name: str,
+    application_file_name: str,
+) -> str:
+    """Create a new Spark job in CDE."""
+    spark_job = cdejob.CdeSparkJob(CDE_CONNECTION)
+
+    job_def = spark_job.createJobDefinition(
+        job_name,
+        resource_name,
+        application_file_name,
+        executorMemory="2g",
+        executorCores=2,
+    )
+
+    CDE_MANAGER.createJob(job_def)
+    return f"Created Spark job '{job_name}'."
+
+
+@tool
+def run_cde_job(job_name: str) -> str:
+    """Run a Spark job."""
+    CDE_MANAGER.runJob(job_name)
+    return f"Submitted job '{job_name}'."
+
+# =========================================================
+# TOOL REGISTRATION
+# =========================================================
+
+TOOLS = [
+    connect_to_cde,
+    validate_job_runs,
+    download_spark_event_logs,
+    download_spark_script,
+    create_new_spark_job,
+    run_cde_job,
+]
+
+# =========================================================
+# LANGGRAPH SETUP
+# =========================================================
 
 llm = ChatOpenAI(
-    model=LLM_MODEL_ID,
-    base_url=LLM_ENDPOINT_BASE_URL,
-    api_key=LLM_CDP_TOKEN,
-    temperature=0.2,
-)
+    model="gpt-4.1-mini",
+    temperature=0,
+).bind_tools(TOOLS)
 
-# ============================================================
-# Embedding helpers (unchanged on purpose)
-# ============================================================
-EMBEDDING_MODEL_ID = os.environ["EMBEDDING_MODEL_ID"]
-EMBEDDING_ENDPOINT_BASE_URL = os.environ["EMBEDDING_ENDPOINT_BASE_URL"]
-EMBEDDING_CDP_TOKEN = os.environ["EMBEDDING_CDP_TOKEN"]
-
-from openai import OpenAI
-
-llmClient = OpenAI(
-    base_url=EMBEDDING_ENDPOINT_BASE_URL,
-    api_key=EMBEDDING_CDP_TOKEN,
-)
-
-def get_passage_embedding(text: str):
-    return llmClient.embeddings.create(
-        input=text,
-        model=EMBEDDING_MODEL_ID,
-        extra_body={"input_type": "passage"},
-    ).data[0].embedding
-
-# ============================================================
-# Improved RAG query construction
-# ============================================================
-
-def build_rag_query(anomaly: dict) -> str:
-    metric = anomaly["metric"]
-
-    if metric == "shuffleBytesWritten":
-        return (
-            "Spark tuning for excessive shuffle data, large shuffles, "
-            "shuffle spill to disk, shuffle partitions, wide transformations"
-        )
-
-    if metric == "gc_time_pct":
-        return (
-            "Spark tuning for high JVM garbage collection time, "
-            "executor memory pressure, GC overhead, executor sizing"
-        )
-
-    return (
-        "Spark performance tuning for executor memory, "
-        "parallelism, and shuffle behavior"
-    )
-
-# ============================================================
-# LLM-based Spark recommendation
-# ============================================================
-
-def llm_recommend_spark_configs(anomaly: dict, docs: list[str]) -> list[dict]:
-    system = SystemMessage(
-        content=(
-            "You are a Spark performance tuning expert. "
-            "Analyze Spark performance anomalies and documentation excerpts. "
-            "Recommend concrete Spark configuration changes. "
-            "Be concise and practical."
-        )
-    )
-
-    human = HumanMessage(
-        content=f"""
-Detected anomaly:
-- Metric: {anomaly['metric']}
-- Value: {anomaly['value']}
-- Severity: {anomaly['severity']}
-
-Relevant Spark documentation excerpts:
-{chr(10).join(docs)}
-
-Return ONLY valid JSON in this format:
-[
-  {{
-    "config": "spark.sql.shuffle.partitions",
-    "value": "2000",
-    "reason": "Large shuffle volume benefits from higher parallelism"
-  }}
-]
-"""
-    )
-
-    response = llm.invoke([system, human])
-    raw = response.content
-    print("LLM RAW OUTPUT:\n", raw)
-    return extract_json(response.content)
-
-# ============================================================
-# Node 2: RAG tuning (LLM-driven)
-# ============================================================
-
-def rag_tuning(state: AgentState) -> AgentState:
-    tuning_recommendations = []
-
-    for anomaly in state["anomalies"]:
-        query = build_rag_query(anomaly)
-        emb = get_passage_embedding(query)
-
-        results = spark_col.query(
-            query_embeddings=[emb],
-            n_results=5,
-        )
-
-        docs = results["documents"][0]
-
-        try:
-            llm_recs = llm_recommend_spark_configs(anomaly, docs)
-        except Exception as e:
-            print("LLM recommendation failed:", e)
-            llm_recs = []
-
-        spark_submit_flags = [
-            f"--conf {r['config']}={r['value']}"
-            for r in llm_recs
-        ]
-
-        tuning_recommendations.append({
-            "spark_application_id": anomaly["spark_application_id"],
-            "issue": anomaly["metric"],
-            "recommended_spark_submit": spark_submit_flags,
-            "details": llm_recs,
-        })
-
-    return {"tuning_recommendations": tuning_recommendations}
-
-# ============================================================
-# Routing
-# ============================================================
+def agent(state: AgentState):
+    return {"messages": [llm.invoke(state["messages"])]}
 
 def route(state: AgentState):
-    return "rag_tuning" if state.get("anomalies") else END
+    last = state["messages"][-1]
+    return "tools" if last.tool_calls else END
 
-# ============================================================
-# Build graph
-# ============================================================
+graph = StateGraph(AgentState)
+graph.add_node("agent", agent)
+graph.add_node("tools", ToolNode(TOOLS))
+graph.set_entry_point("agent")
+graph.add_conditional_edges("agent", route, {"tools": "tools", END: END})
+graph.add_edge("tools", "agent")
+app = graph.compile()
 
-builder = StateGraph(AgentState)
-builder.add_node("analyze", analyze_metrics)
-builder.add_node("rag_tuning", rag_tuning)
+# =========================================================
+# SYSTEM PROMPT
+# =========================================================
 
-builder.set_entry_point("analyze")
+SYSTEM_PROMPT = """
+You are a Spark-on-CDE reliability agent.
 
-builder.add_conditional_edges(
-    "analyze",
-    route,
-    {"rag_tuning": "rag_tuning", END: END},
-)
+Each execution:
+1. Check the most recent run of the Spark job.
+2. If RUNNING or SUCCEEDED: do nothing.
+3. If FAILED:
+   - Download Spark event logs
+   - Download the Spark script from the CDE resource
+   - Identify the root cause
+   - Generate a corrected Spark script
+   - Create a NEW Spark job with a new name
+   - Run the new Spark job
 
-builder.add_edge("rag_tuning", END)
+Do not retry more than once.
+"""
 
-graph = builder.compile()
+# =========================================================
+# CORE EXECUTION FUNCTION
+# =========================================================
 
-# ============================================================
-# Formatting helpers
-# ============================================================
-
-def format_anomalies(anomalies: list[dict]) -> str:
-    if not anomalies:
-        return "✅ No anomalies detected."
-
-    lines = ["### 🚨 Detected Anomalies"]
-    for a in anomalies:
-        lines.append(
-            f"- **App** `{a['spark_application_id']}` | "
-            f"**Metric** `{a['metric']}` | "
-            f"**Value** `{a['value']:.2f}` | "
-            f"**Severity** `{a['severity']}`"
-        )
-    return "\n".join(lines)
-
-def format_tuning(recs: list[dict]) -> str:
-    if not recs:
-        return "ℹ️ No tuning recommendations."
-
-    lines = ["### 🛠️ Tuning Recommendations"]
-
-    for r in recs:
-        lines.append(
-            f"\n#### 📌 App `{r['spark_application_id']}`"
-            f"\n- **Issue**: `{r['issue']}`"
-        )
-
-        # Spark-submit flags
-        if r.get("recommended_spark_submit"):
-            lines.append("\n**Suggested spark-submit flags:**")
-            for opt in r["recommended_spark_submit"]:
-                lines.append(f"- `{opt}`")
-        else:
-            lines.append("\n_No spark-submit flags generated._")
-
-        # Detailed LLM reasoning
-        details = r.get("details", [])
-        if details:
-            lines.append("\n**Why these changes:**")
-            for d in details:
-                lines.append(
-                    f"- **{d['config']} = {d['value']}**  \n"
-                    f"  _Reason_: {d['reason']}"
-                )
-
-    return "\n".join(lines)
-
-# ============================================================
-# Agent loop
-# ============================================================
-
-def agent_loop():
-    while True:
-        spark.sql("CLEAR CACHE")
-        spark.catalog.refreshTable(SPARK_METRICS_TABLE)
-
-        df = spark.sql(f"""
-            SELECT
-                appId,
-                MIN(ts) AS first_ts,
-                MAX(ts) AS last_ts,
-                SUM(shuffleBytesWritten) AS shuffleBytesWritten,
-                SUM(executorRunTime) AS executorRunTime,
-                SUM(jvmGCTime) AS jvmGCTime,
-                SUM(diskBytesSpilled) AS diskBytesSpilled,
-                SUM(memoryBytesSpilled) AS memoryBytesSpilled,
-                SUM(resultSize) AS resultSize,
-                SUM(peakExecutionMemory) AS peakExecutionMemory,
-                SUM(duration) AS duration
-            FROM {SPARK_METRICS_TABLE}
-            GROUP BY appId
-            ORDER BY last_ts
-        """)
-
-        rows = [r.asDict() for r in df.collect()] if df.count() > 0 else []
-
-        if rows:
-            result = graph.invoke({
-                "metrics": rows,
-                "agent_version": AGENT_VERSION,
-            })
-        else:
-            result = {"anomalies": [], "tuning_recommendations": []}
-
-        with UI_STATE_LOCK:
-            UI_STATE["anomaly_md"] = format_anomalies(result.get("anomalies", []))
-            UI_STATE["tuning_md"] = format_tuning(result.get("tuning_recommendations", []))
-            UI_STATE["last_updated"] = datetime.utcnow().isoformat()
-            UI_STATE["aggregated_metrics_df"] = df.toPandas() if rows else None
-
-        time.sleep(POLL_INTERVAL_SECONDS)
-
-# ============================================================
-# Gradio UI
-# ============================================================
-
-def get_ui_state():
-    with UI_STATE_LOCK:
-        s = deepcopy(UI_STATE)
-
-    metrics_df = s.get("aggregated_metrics_df")
-
-    if metrics_df is not None and not metrics_df.empty:
-        # Render all columns and apply CSS class
-        metrics_html = metrics_df.to_html(
-            index=False,
-            classes="metrics-table",
-            border=0,
-            justify="center",
-        )
-        # Wrap in a scrollable div with margin
-        metrics_html = f"""
-        <div style='max-height:400px; overflow:auto; margin-bottom:20px;'>
-            {metrics_html}
-        </div>
-        """
-    else:
-        metrics_html = "<div>No Spark metrics</div>"
-
-    # Ensure there is spacing before anomalies and tuning sections
-    anomaly_md = ("<br><br>" + s.get("anomaly_md", "")) if s.get("anomaly_md") else "No anomalies detected"
-    tuning_md = ("<br><br>" + s.get("tuning_md", "")) if s.get("tuning_md") else "No tuning recommendations"
-
-    last_updated = s.get("last_updated", "Never")
-
-    return metrics_html, anomaly_md, tuning_md, last_updated
-
-
-def start_agent():
-    threading.Thread(target=agent_loop, daemon=True).start()
-
-
-with gr.Blocks(title="Spark Performance Monitoring Agent") as demo:
-    gr.HTML("""
-    <style>
-    .metrics-table th, .metrics-table td {
-        padding: 5px 10px;
-        text-align: center;
-        white-space: normal;
-    }
-    .metrics-table {
-        border-collapse: collapse;
-        width: 100%;
-    }
-    </style>
-    """)
-
-    gr.Markdown("## 🔍 Spark Performance Monitoring Agent")
-
-    metrics_table = gr.HTML(label="📊 Spark Metrics by App")
-    anomalies = gr.Markdown(label="<h3>🚨 Detected Anomalies")
-    tuning = gr.Markdown(label="<h3>🛠️ Tuning Recommendations")
-    updated = gr.Textbox(label="Last Updated (UTC)", interactive=False)
-
-    # Update every 10 seconds
-    timer = gr.Timer(value=10, active=True)
-    timer.tick(
-        fn=get_ui_state,
-        inputs=[],
-        outputs=[metrics_table, anomalies, tuning, updated],
+def run_monitor():
+    # Run LangGraph once
+    app.invoke(
+        {
+            "messages": [
+                SystemMessage(content=SYSTEM_PROMPT),
+                HumanMessage(
+                    content=(
+                        f"Monitor job '{JOB_NAME}'. "
+                        f"Resource '{RESOURCE_NAME}', "
+                        f"Script '{APPLICATION_FILE_NAME}'."
+                    )
+                ),
+            ]
+        }
     )
 
-    # Start the agent when the UI loads
-    demo.load(fn=start_agent)
+    # Fetch latest job status for UI
+    job_runs = json.loads(CDE_MANAGER.listJobRuns())
+    latest = job_runs[-1] if job_runs else {}
+
+    status = latest.get("status", "UNKNOWN")
+    run_id = latest.get("id", "")
+
+    script = ""
+    logs = ""
+
+    if run_id:
+        script = download_spark_script(RESOURCE_NAME, APPLICATION_FILE_NAME)
+
+    if status == "FAILED" and run_id:
+        logs = download_spark_event_logs(run_id)
+
+    return status, script, logs
+
+# =========================================================
+# INITIAL CONNECTION
+# =========================================================
+
+connect_to_cde(JOBS_API_URL, WORKLOAD_USER, WORKLOAD_PASSWORD)
+
+# =========================================================
+# GRADIO UI
+# =========================================================
+
+with gr.Blocks(title="CDE Spark Job Monitor") as demo:
+    gr.Markdown("## CDE Spark Job Monitor & Auto-Remediator")
+
+    status_box = gr.Textbox(label="Latest Job Status")
+    script_box = gr.Code(label="Spark Script", language="python")
+    logs_box = gr.Code(label="Spark Event Logs", language="json")
+
+    refresh_btn = gr.Button("Refresh (Run One Check)")
+
+    refresh_btn.click(
+        fn=run_monitor,
+        outputs=[status_box, script_box, logs_box],
+    )
+
+demo.load()
 
 if __name__ == "__main__":
     demo.launch(
