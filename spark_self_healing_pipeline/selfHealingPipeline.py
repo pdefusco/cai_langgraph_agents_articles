@@ -114,7 +114,18 @@ llm = ChatOpenAI(
 # =========================================================
 
 def fetch_latest_run(state: AgentState):
-    runs = json.loads(CDE_MANAGER.listJobRuns())
+    result = CDE_MANAGER.listJobRuns()
+
+    if result == -1 or result is None:
+        raise RuntimeError("Failed to list CDE job runs (API returned -1)")
+
+    try:
+        runs = json.loads(result)
+    except Exception as e:
+        raise RuntimeError(
+            f"Invalid response from listJobRuns(): {result}"
+        ) from e
+
     if not runs:
         state["latest_run_id"] = None
         state["latest_run_status"] = None
