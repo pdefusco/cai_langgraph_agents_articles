@@ -40,8 +40,10 @@
 import json
 import time
 import threading
+import os
+from typing import TypedDict
+
 import gradio as gr
-from typing import TypedDict, Annotated
 
 from cdepy import (
     cdeconnection,
@@ -51,16 +53,9 @@ from cdepy import (
 )
 
 from langchain_openai import ChatOpenAI
-from langchain_core.tools import tool
-from langchain_core.messages import (
-    BaseMessage,
-    HumanMessage,
-    SystemMessage,
-)
-from langgraph.graph.message import add_messages
+from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.graph import StateGraph, END
-from langgraph.prebuilt import ToolNode
-import os
+
 
 # =========================================================
 # USER CONFIGURATION
@@ -80,6 +75,7 @@ LLM_CDP_TOKEN = os.environ["LLM_CDP_TOKEN"]
 
 POLL_INTERVAL_SECONDS = 30
 
+
 # =========================================================
 # GLOBAL CDE OBJECTS
 # =========================================================
@@ -87,139 +83,22 @@ POLL_INTERVAL_SECONDS = 30
 CDE_CONNECTION = None
 CDE_MANAGER = None
 
+
 # =========================================================
-# LANGGRAPH STATE
+# LANGGRAPH STATE (EXPLICIT & DETERMINISTIC)
 # =========================================================
 
 class AgentState(TypedDict):
-    messages: Annotated[list[BaseMessage], add_messages]
+    latest_run_id: str | None
+    latest_run_status: str | None
+    spark_logs: str | None
+    spark_script: str | None
     improved_script: str | None
+    retried: bool
 
 
 # =========================================================
-# TOOLS
-# =========================================================
-
-@tool
-def connect_to_cde(jobs_api_url: str, user: str, password: str) -> str:
-    global CDE_CONNECTION, CDE_MANAGER
-    CDE_CONNECTION = cdeconnection.CdeConnection(jobs_api_url, user, password)
-    CDE_CONNECTION.setToken()
-    CDE_MANAGER = cdemanager.CdeClusterManager(CDE_CONNECTION)
-    return "Connected to CDE."
-
-
-@tool
-def validate_job_runs() -> dict:
-    return json.loads(CDE_MANAGER.listJobRuns())
-
-
-@tool
-def download_spark_event_logs(job_run_id: str) -> str:
-    logs = CDE_MANAGER.downloadJobRunLogs(job_run_id, "driver/event")
-    return json.dumps(utils.sparkEventLogParser(logs), indent=2)
-
-
-@tool
-def download_spark_script(resource_name: str, file_name: str) -> str:
-    return CDE_MANAGER.downloadFileFromResource(resource_name, file_name)
-
-
-@tool
-def create_files_resource(resource_name: str) -> str:
-    CDE_MANAGER.createResource(resource_name)
-    return f"Created new CDE files resource '{resource_name}'."
-
-def refine_spark_script(state: AgentState):
-    messages = state["messages"]
-
-    spark_script = None
-    spark_logs = None
-
-    for msg in messages:
-        if isinstance(msg, HumanMessage):
-            if "SPARK_SCRIPT:" in msg.content:
-                spark_script = msg.content.split("SPARK_SCRIPT:", 1)[1]
-            if "SPARK_LOGS:" in msg.content:
-                spark_logs = msg.content.split("SPARK_LOGS:", 1)[1]
-
-    prompt = [
-        SystemMessage(
-            content=(
-                "You are a senior Spark engineer.\n"
-                "Given a failed Spark application and its event logs:\n"
-                "- Identify the root cause\n"
-                "- Produce a corrected Spark script\n"
-                "- Preserve original intent and structure\n"
-                "- Return ONLY valid Python Spark code\n"
-            )
-        ),
-        HumanMessage(
-            content=(
-                f"SPARK SCRIPT:\n{spark_script}\n\n"
-                f"SPARK EVENT LOGS:\n{spark_logs}"
-            )
-        ),
-    ]
-
-    response = llm.invoke(prompt)
-
-    return {
-        "messages": messages + [response],
-        "improved_script": response.content,
-    }
-
-@tool
-def upload_spark_script(
-    resource_name: str,
-    file_name: str,
-    file_contents: str,
-) -> str:
-    CDE_MANAGER.uploadFileToResource(
-        resource_name,
-        file_name,
-        file_contents,
-    )
-    return f"Uploaded improved script to resource '{resource_name}'."
-
-
-@tool
-def create_new_spark_job(job_name: str, resource_name: str, application_file_name: str) -> str:
-    spark_job = cdejob.CdeSparkJob(CDE_CONNECTION)
-    job_def = spark_job.createJobDefinition(
-        job_name,
-        resource_name,
-        application_file_name,
-        executorMemory="2g",
-        executorCores=2,
-    )
-    CDE_MANAGER.createJob(job_def)
-    return f"Created job '{job_name}'."
-
-
-@tool
-def run_cde_job(job_name: str) -> str:
-    CDE_MANAGER.runJob(job_name)
-    return f"Submitted job '{job_name}'."
-
-# =========================================================
-# TOOL REGISTRATION
-# =========================================================
-
-TOOLS = [
-    connect_to_cde,
-    validate_job_runs,
-    download_spark_event_logs,
-    download_spark_script,
-    create_files_resource,
-    upload_spark_script,
-    create_new_spark_job,
-    run_cde_job,
-]
-
-
-# =========================================================
-# LANGGRAPH SETUP
+# LLM (USED ONLY FOR SCRIPT ANALYSIS + FIX)
 # =========================================================
 
 llm = ChatOpenAI(
@@ -227,106 +106,177 @@ llm = ChatOpenAI(
     base_url=LLM_ENDPOINT_BASE_URL,
     api_key=LLM_CDP_TOKEN,
     temperature=0,
-).bind_tools(TOOLS)
+)
 
-def agent(state: AgentState):
-    return {"messages": [llm.invoke(state["messages"])]}
 
-def route(state: AgentState):
-    last = state["messages"][-1]
-    return "tools" if last.tool_calls else END
+# =========================================================
+# GRAPH NODES (PURE FUNCTIONS)
+# =========================================================
+
+def connect(state: AgentState):
+    global CDE_CONNECTION, CDE_MANAGER
+
+    CDE_CONNECTION = cdeconnection.CdeConnection(
+        JOBS_API_URL,
+        WORKLOAD_USER,
+        WORKLOAD_PASSWORD,
+    )
+    CDE_CONNECTION.setToken()
+    CDE_MANAGER = cdemanager.CdeClusterManager(CDE_CONNECTION)
+
+    return state
+
+
+def fetch_latest_run(state: AgentState):
+    runs = json.loads(CDE_MANAGER.listJobRuns())
+    if not runs:
+        state["latest_run_id"] = None
+        state["latest_run_status"] = None
+        return state
+
+    latest = runs[-1]
+    state["latest_run_id"] = latest.get("id")
+    state["latest_run_status"] = latest.get("status")
+    return state
+
+
+def route_on_status(state: AgentState):
+    if state["latest_run_status"] == "FAILED" and not state["retried"]:
+        return "download_artifacts"
+    return END
+
+
+def download_artifacts(state: AgentState):
+    run_id = state["latest_run_id"]
+
+    logs_raw = CDE_MANAGER.downloadJobRunLogs(run_id, "driver/event")
+    state["spark_logs"] = json.dumps(
+        utils.sparkEventLogParser(logs_raw),
+        indent=2,
+    )
+
+    state["spark_script"] = CDE_MANAGER.downloadFileFromResource(
+        RESOURCE_NAME,
+        APPLICATION_FILE_NAME,
+    )
+
+    return state
+
+
+def llm_fix_script(state: AgentState):
+    prompt = [
+        SystemMessage(
+            content=(
+                "You are a senior Spark engineer.\n"
+                "Analyze the Spark event logs and fix the application.\n"
+                "Preserve original intent.\n"
+                "Return ONLY valid Python Spark code."
+            )
+        ),
+        HumanMessage(
+            content=(
+                f"SPARK SCRIPT:\n{state['spark_script']}\n\n"
+                f"SPARK EVENT LOGS:\n{state['spark_logs']}"
+            )
+        ),
+    ]
+
+    response = llm.invoke(prompt)
+
+    state["improved_script"] = response.content
+    state["retried"] = True
+    return state
+
+
+def deploy_and_run_fixed_job(state: AgentState):
+    new_resource = f"{RESOURCE_NAME}_fixed"
+    new_job_name = f"{JOB_NAME}_fixed"
+
+    CDE_MANAGER.createResource(new_resource)
+
+    CDE_MANAGER.uploadFileToResource(
+        new_resource,
+        APPLICATION_FILE_NAME,
+        state["improved_script"],
+    )
+
+    spark_job = cdejob.CdeSparkJob(CDE_CONNECTION)
+    job_def = spark_job.createJobDefinition(
+        new_job_name,
+        new_resource,
+        APPLICATION_FILE_NAME,
+        executorMemory="2g",
+        executorCores=2,
+    )
+
+    CDE_MANAGER.createJob(job_def)
+    CDE_MANAGER.runJob(new_job_name)
+
+    return state
+
+
+# =========================================================
+# LANGGRAPH DEFINITION
+# =========================================================
 
 graph = StateGraph(AgentState)
 
-graph.add_node("agent", agent)
-graph.add_node("tools", ToolNode(TOOLS))
-graph.add_node("refine_script", refine_spark_script)
+graph.add_node("connect", connect)
+graph.add_node("fetch_latest_run", fetch_latest_run)
+graph.add_node("download_artifacts", download_artifacts)
+graph.add_node("llm_fix_script", llm_fix_script)
+graph.add_node("deploy_and_run_fixed_job", deploy_and_run_fixed_job)
 
-graph.set_entry_point("agent")
+graph.set_entry_point("connect")
 
+graph.add_edge("connect", "fetch_latest_run")
 graph.add_conditional_edges(
-    "agent",
-    route,
+    "fetch_latest_run",
+    route_on_status,
     {
-        "tools": "tools",
+        "download_artifacts": "download_artifacts",
         END: END,
     },
 )
 
-graph.add_edge("tools", "agent")
-
-# NEW: after logs + script are downloaded, refine
-graph.add_edge("agent", "refine_script")
-
-# After refinement, go back to tools (create resource, upload, job, run)
-graph.add_edge("refine_script", "tools")
+graph.add_edge("download_artifacts", "llm_fix_script")
+graph.add_edge("llm_fix_script", "deploy_and_run_fixed_job")
+graph.add_edge("deploy_and_run_fixed_job", END)
 
 app = graph.compile()
 
 
 # =========================================================
-# SYSTEM PROMPT
-# =========================================================
-
-SYSTEM_PROMPT = """
-You are a Spark-on-CDE reliability agent.
-
-Each execution:
-1. Check the most recent run of the Spark job.
-2. If RUNNING or SUCCEEDED: do nothing.
-3. If FAILED:
-   - Download Spark event logs
-   - Download the Spark script from the CDE resource
-   - Identify the root cause
-   - Generate a corrected Spark script
-   - Create a NEW Spark job
-   - Run the new Spark job
-
-Do not retry more than once.
-"""
-
-# =========================================================
-# CORE EXECUTION
+# EXECUTION LOOP
 # =========================================================
 
 def run_monitor():
     try:
         app.invoke(
             {
-                "messages": [
-                    SystemMessage(content=SYSTEM_PROMPT),
-                    HumanMessage(
-                        content=(
-                            f"Monitor job '{JOB_NAME}'. "
-                            f"Resource '{RESOURCE_NAME}', "
-                            f"Script '{APPLICATION_FILE_NAME}'."
-                        )
-                    ),
-                ]
+                "latest_run_id": None,
+                "latest_run_status": None,
+                "spark_logs": None,
+                "spark_script": None,
+                "improved_script": None,
+                "retried": False,
             }
         )
     except Exception as e:
-        print("Agent execution error:", e)
+        print("Execution error:", e)
 
-# =========================================================
-# BACKGROUND SCHEDULER (30s)
-# =========================================================
 
 def agent_loop():
     while True:
         run_monitor()
         time.sleep(POLL_INTERVAL_SECONDS)
 
-# =========================================================
-# INITIALIZATION
-# =========================================================
-
-connect_to_cde(JOBS_API_URL, WORKLOAD_USER, WORKLOAD_PASSWORD)
 
 threading.Thread(target=agent_loop, daemon=True).start()
 
+
 # =========================================================
-# GRADIO UI
+# GRADIO UI (UNCHANGED BEHAVIOR)
 # =========================================================
 
 def ui_refresh():
@@ -340,15 +290,22 @@ def ui_refresh():
     logs = ""
 
     if run_id:
-        script = download_spark_script(RESOURCE_NAME, APPLICATION_FILE_NAME)
+        script = CDE_MANAGER.downloadFileFromResource(
+            RESOURCE_NAME,
+            APPLICATION_FILE_NAME,
+        )
 
     if status == "FAILED" and run_id:
-        logs = download_spark_event_logs(run_id)
+        logs_raw = CDE_MANAGER.downloadJobRunLogs(run_id, "driver/event")
+        logs = json.dumps(
+            utils.sparkEventLogParser(logs_raw),
+            indent=2,
+        )
 
     return status, script, logs
 
 
-with gr.Blocks(title="CDE Spark Job Monitor") as demo:
+with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator") as demo:
     gr.Markdown("## CDE Spark Job Monitor & Auto-Remediator")
 
     status_box = gr.Textbox(label="Latest Job Status")
@@ -356,11 +313,11 @@ with gr.Blocks(title="CDE Spark Job Monitor") as demo:
     logs_box = gr.Code(label="Spark Event Logs", language="json")
 
     refresh_btn = gr.Button("Refresh Now")
-
     refresh_btn.click(
         fn=ui_refresh,
         outputs=[status_box, script_box, logs_box],
     )
+
 
 if __name__ == "__main__":
     demo.launch(
