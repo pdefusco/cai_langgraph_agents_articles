@@ -72,6 +72,10 @@ JOB_NAME = os.environ["JOB_NAME"]
 RESOURCE_NAME = os.environ["RESOURCE_NAME"]
 APPLICATION_FILE_NAME = os.environ["APPLICATION_FILE_NAME"]
 
+LLM_MODEL_ID = os.environ["LLM_MODEL_ID"]
+LLM_ENDPOINT_BASE_URL = os.environ["LLM_ENDPOINT_BASE_URL"]
+LLM_CDP_TOKEN = os.environ["LLM_CDP_TOKEN"]
+
 # =========================================================
 # GLOBAL CDE OBJECTS (SHARED STATE)
 # =========================================================
@@ -169,7 +173,9 @@ TOOLS = [
 # =========================================================
 
 llm = ChatOpenAI(
-    model="gpt-4.1-mini",
+    model=LLM_MODEL_ID,
+    base_url=LLM_ENDPOINT_BASE_URL,
+    api_key=LLM_CDP_TOKEN,
     temperature=0,
 ).bind_tools(TOOLS)
 
