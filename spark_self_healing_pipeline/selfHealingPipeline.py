@@ -226,7 +226,6 @@ graph.add_node("deploy_and_run_fixed_job", deploy_and_run_fixed_job)
 
 graph.set_entry_point("fetch_latest_run")
 
-graph.add_edge("connect", "fetch_latest_run")
 graph.add_conditional_edges(
     "fetch_latest_run",
     route_on_status,
