@@ -113,20 +113,6 @@ llm = ChatOpenAI(
 # GRAPH NODES (PURE FUNCTIONS)
 # =========================================================
 
-def connect(state: AgentState):
-    global CDE_CONNECTION, CDE_MANAGER
-
-    CDE_CONNECTION = cdeconnection.CdeConnection(
-        JOBS_API_URL,
-        WORKLOAD_USER,
-        WORKLOAD_PASSWORD,
-    )
-    CDE_CONNECTION.setToken()
-    CDE_MANAGER = cdemanager.CdeClusterManager(CDE_CONNECTION)
-
-    return state
-
-
 def fetch_latest_run(state: AgentState):
     runs = json.loads(CDE_MANAGER.listJobRuns())
     if not runs:
@@ -215,19 +201,30 @@ def deploy_and_run_fixed_job(state: AgentState):
     return state
 
 
+def init_cde():
+    global CDE_CONNECTION, CDE_MANAGER
+
+    CDE_CONNECTION = cdeconnection.CdeConnection(
+        JOBS_API_URL,
+        WORKLOAD_USER,
+        WORKLOAD_PASSWORD,
+    )
+    CDE_CONNECTION.setToken()
+    CDE_MANAGER = cdemanager.CdeClusterManager(CDE_CONNECTION)
+
+
 # =========================================================
 # LANGGRAPH DEFINITION
 # =========================================================
 
 graph = StateGraph(AgentState)
 
-graph.add_node("connect", connect)
 graph.add_node("fetch_latest_run", fetch_latest_run)
 graph.add_node("download_artifacts", download_artifacts)
 graph.add_node("llm_fix_script", llm_fix_script)
 graph.add_node("deploy_and_run_fixed_job", deploy_and_run_fixed_job)
 
-graph.set_entry_point("connect")
+graph.set_entry_point("fetch_latest_run")
 
 graph.add_edge("connect", "fetch_latest_run")
 graph.add_conditional_edges(
@@ -271,6 +268,7 @@ def agent_loop():
         run_monitor()
         time.sleep(POLL_INTERVAL_SECONDS)
 
+init_cde()
 
 threading.Thread(target=agent_loop, daemon=True).start()
 
