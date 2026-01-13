@@ -224,7 +224,7 @@ def deploy_and_run_fixed_job(state: AgentState):
     CDE_MANAGER.runJob(new_job_name)
 
     # Optional cleanup
-    os.remove(local_path)
+    #os.remove(local_path)
 
     state["remediation_summary"] = (
         f"Created resource '{new_resource}', "
