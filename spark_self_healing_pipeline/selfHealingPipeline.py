@@ -156,12 +156,6 @@ def download_artifacts(state: AgentState):
 import difflib
 import re
 
-import difflib
-import re
-
-import difflib
-import re
-
 def llm_analyze_and_fix(state: AgentState):
     prompt = [
         SystemMessage(
@@ -170,12 +164,12 @@ def llm_analyze_and_fix(state: AgentState):
                 "1. Identify the root cause of failure\n"
                 "2. Explain why it happened\n"
                 "3. Mention alternatives if relevant\n"
-                "4. Produce a corrected Spark script\n\n"
+                "4. Produce a **complete, ready-to-run Spark Python script**.\n\n"
                 "Respond EXACTLY in this format:\n"
                 "=== ANALYSIS ===\n"
                 "<analysis>\n\n"
                 "=== FIXED SCRIPT ===\n"
-                "<python code>"
+                "<full python script, no placeholders, no backticks>"
             )
         ),
         HumanMessage(
@@ -189,23 +183,26 @@ def llm_analyze_and_fix(state: AgentState):
     response = llm.invoke(prompt)
     text = response.content
 
-    # Split the analysis and fixed script
-    try:
+    # Split analysis and script
+    if "=== FIXED SCRIPT ===" in text:
         analysis, fixed_script = text.split("=== FIXED SCRIPT ===", 1)
-    except ValueError:
-        analysis = text
-        fixed_script = ""
+    else:
+        # fallback if LLM didn't produce the exact separator
+        analysis = "No analysis returned."
+        fixed_script = state["spark_script"]
 
-    # Clean analysis
-    analysis = analysis.replace("=== ANALYSIS ===", "").strip()
+    # Remove any remaining backticks or markdown
+    fixed_script = fixed_script.replace("```python", "").replace("```", "").strip()
 
-    # ===== Aggressively clean the fixed script =====
-    fixed_script = fixed_script.strip()  # remove leading/trailing whitespace
-    # Remove any leading ``` or ```python (even with newlines or spaces)
-    fixed_script = re.sub(r"^```(?:python)?[\r\n]*", "", fixed_script)
-    # Remove any trailing ```
-    fixed_script = re.sub(r"[\r\n]*```$", "", fixed_script)
-    fixed_script = fixed_script.strip()  # final strip
+    # Optionally remove placeholder comments
+    lines = []
+    for line in fixed_script.splitlines():
+        if "# ... " in line or "# **FIX**" in line:
+            continue  # skip illustrative comments
+        if "spark.sql(f\"...\"" in line:
+            continue  # skip placeholder SQL
+        lines.append(line)
+    fixed_script = "\n".join(lines)
 
     # Generate diff
     diff = difflib.unified_diff(
@@ -216,14 +213,11 @@ def llm_analyze_and_fix(state: AgentState):
         lineterm="",
     )
 
-    # Update state
-    state["llm_analysis"] = analysis
+    state["llm_analysis"] = analysis.replace("=== ANALYSIS ===", "").strip()
     state["improved_script"] = fixed_script
     state["code_diff"] = "\n".join(diff)
     state["retried"] = True
-
     return state
-
 
 
 import tempfile
