@@ -388,7 +388,7 @@ def ui_refresh(state: dict = None):
             job_runs = json.loads(job_runs_raw).get("runs", [])
             for run in job_runs:
                 if str(run.get("id")) == str(latest_run_id):
-                    spark_script = CDE_MANAGER.downloadJobScript(run.get("job")) or ""
+                    spark_script = CDE_MANAGER.downloadFileFromResource(RESOURCE_NAME, APPLICATION_FILE_NAME)
                     break
         except Exception as e:
             spark_script = f"Failed to fetch script: {e}"
