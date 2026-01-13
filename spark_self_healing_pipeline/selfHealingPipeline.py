@@ -301,8 +301,10 @@ with gr.Blocks(title="CDE Spark Job Auto-Remediator") as demo:
     fixed_script_box = gr.Code(
         label="Improved Spark Script", language="python"
     )
-    diff_box = gr.Code(
-        label="Spark Code Diff (Original vs Fixed)", language="diff"
+    diff_box = gr.Textbox(
+        label="Spark Code Diff (Original vs Fixed)",
+        lines=20,
+        interactive=False,
     )
     remediation_box = gr.Textbox(
         label="Remediation Summary", lines=4
