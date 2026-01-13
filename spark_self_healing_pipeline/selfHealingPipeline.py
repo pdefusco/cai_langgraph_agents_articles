@@ -1,51 +1,10 @@
 #****************************************************************************
 # (C) Cloudera, Inc. 2020-2026
-#  All rights reserved.
-#
-#  Applicable Open Source License: GNU Affero General Public License v3.0
-#
-#  NOTE: Cloudera open source products are modular software products
-#  made up of hundreds of individual components, each of which was
-#  individually copyrighted.  Each Cloudera open source product is a
-#  collective work under U.S. Copyright Law. Your license to use the
-#  collective work is as provided in your written agreement with
-#  Cloudera.  Used apart from the collective work, this file is
-#  licensed for your use pursuant to the open source license
-#  identified above.
-#
-#  This code is provided to you pursuant a written agreement with
-#  (i) Cloudera, Inc. or (ii) a third-party authorized to distribute
-#  this code. If you do not have a written agreement with Cloudera nor
-#  with an authorized and properly licensed third party, you do not
-#  have any rights to access nor to use this code.
-#
-#  Absent a written agreement with Cloudera, Inc. (“Cloudera”) to the
-#  contrary, A) CLOUDERA PROVIDES THIS CODE TO YOU WITHOUT WARRANTIES OF ANY
-#  KIND; (B) CLOUDERA DISCLAIMS ANY AND ALL EXPRESS AND IMPLIED
-#  WARRANTIES WITH RESPECT TO THIS CODE, INCLUDING BUT NOT LIMITED TO
-#  IMPLIED WARRANTIES OF TITLE, NON-INFRINGEMENT, MERCHANTABILITY AND
-#  FITNESS FOR A PARTICULAR PURPOSE; (C) CLOUDERA IS NOT LIABLE TO YOU,
-#  AND WILL NOT DEFEND, INDEMNIFY, NOR HOLD YOU HARMLESS FOR ANY CLAIMS
-#  ARISING FROM OR RELATED TO THE CODE; AND (D)WITH RESPECT TO YOUR EXERCISE
-#  OF ANY RIGHTS GRANTED TO YOU FOR THE CODE, CLOUDERA IS NOT LIABLE FOR ANY
-#  DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, PUNITIVE OR
-#  CONSEQUENTIAL DAMAGES INCLUDING, BUT NOT LIMITED TO, DAMAGES
-#  RELATED TO LOST REVENUE, LOST PROFITS, LOSS OF INCOME, LOSS OF
-#  BUSINESS ADVANTAGE OR UNAVAILABILITY, OR LOSS OR CORRUPTION OF
-#  DATA.
-#
-# #  Author(s): Paul de Fusco
-#***************************************************************************/
+# All rights reserved.
 #****************************************************************************
-# (C) Cloudera, Inc. 2020-2026
-#  All rights reserved.
-#
-#  Author(s): Paul de Fusco
-#***************************************************************************/
 
 import json
 import time
-import threading
 import os
 from typing import TypedDict
 
@@ -61,7 +20,7 @@ from cdepy import (
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.graph import StateGraph, END
-from langgraph.prebuilt import ToolNode
+
 
 # =========================================================
 # USER CONFIGURATION
@@ -81,6 +40,7 @@ LLM_CDP_TOKEN = os.environ["LLM_CDP_TOKEN"]
 
 POLL_INTERVAL_SECONDS = 30
 
+
 # =========================================================
 # GLOBAL CDE OBJECTS
 # =========================================================
@@ -88,8 +48,9 @@ POLL_INTERVAL_SECONDS = 30
 CDE_CONNECTION = None
 CDE_MANAGER = None
 
+
 # =========================================================
-# LANGGRAPH STATE (EXPLICIT & DETERMINISTIC)
+# LANGGRAPH STATE
 # =========================================================
 
 class AgentState(TypedDict):
@@ -99,6 +60,23 @@ class AgentState(TypedDict):
     spark_script: str | None
     improved_script: str | None
     retried: bool
+
+
+# =========================================================
+# INITIALIZE CDE (DETERMINISTIC)
+# =========================================================
+
+def init_cde():
+    global CDE_CONNECTION, CDE_MANAGER
+    CDE_CONNECTION = cdeconnection.CdeConnection(
+        JOBS_API_URL,
+        WORKLOAD_USER,
+        WORKLOAD_PASSWORD,
+    )
+    CDE_CONNECTION.setToken()
+    CDE_MANAGER = cdemanager.CdeClusterManager(CDE_CONNECTION)
+    print("CDE initialized, token set.")
+
 
 # =========================================================
 # LLM (USED ONLY FOR SCRIPT ANALYSIS + FIX)
@@ -111,72 +89,28 @@ llm = ChatOpenAI(
     temperature=0,
 )
 
-# =========================================================
-# UTILITY WRAPPERS FOR CDE API WITH RETRIES
-# =========================================================
-
-MAX_RETRIES = 3
-RETRY_DELAY = 2  # seconds
-
-
-def ensure_token():
-    global CDE_CONNECTION
-    try:
-        _ = CDE_CONNECTION.TOKEN
-    except AttributeError:
-        CDE_CONNECTION.setToken()
-
-
-def safe_list_job_runs():
-    for attempt in range(MAX_RETRIES):
-        try:
-            ensure_token()
-            result = CDE_MANAGER.listJobRuns()
-            if result == -1 or not result:
-                raise RuntimeError("API returned -1 or empty")
-            return json.loads(result)
-        except Exception as e:
-            print(f"Attempt {attempt+1} failed: {e}")
-            time.sleep(RETRY_DELAY)
-    raise RuntimeError("Failed to list job runs after retries")
-
-
-def safe_download_job_logs(run_id: str):
-    for attempt in range(MAX_RETRIES):
-        try:
-            ensure_token()
-            logs_raw = CDE_MANAGER.downloadJobRunLogs(run_id, "driver/event")
-            return json.dumps(utils.sparkEventLogParser(logs_raw), indent=2)
-        except Exception as e:
-            print(f"Attempt {attempt+1} failed to download logs: {e}")
-            time.sleep(RETRY_DELAY)
-    return f"ERROR: Failed to download logs for run {run_id}"
-
-
-def safe_download_spark_script():
-    for attempt in range(MAX_RETRIES):
-        try:
-            ensure_token()
-            return CDE_MANAGER.downloadFileFromResource(RESOURCE_NAME, APPLICATION_FILE_NAME)
-        except Exception as e:
-            print(f"Attempt {attempt+1} failed to download script: {e}")
-            time.sleep(RETRY_DELAY)
-    return "ERROR: Failed to download Spark script"
 
 # =========================================================
 # GRAPH NODES (PURE FUNCTIONS)
 # =========================================================
 
 def fetch_latest_run(state: AgentState):
-    runs = safe_list_job_runs()
+    try:
+        result = CDE_MANAGER.listJobRuns()
+        if result == -1 or not result:
+            raise RuntimeError("listJobRuns returned -1 or empty")
+        runs = json.loads(result)
+    except Exception as e:
+        raise RuntimeError(f"Failed to fetch latest run: {e}")
+
     if not runs:
         state["latest_run_id"] = None
         state["latest_run_status"] = None
-        return state
+    else:
+        latest = runs[-1]
+        state["latest_run_id"] = latest.get("id")
+        state["latest_run_status"] = latest.get("status")
 
-    latest = runs[-1]
-    state["latest_run_id"] = latest.get("id")
-    state["latest_run_status"] = latest.get("status")
     return state
 
 
@@ -188,8 +122,18 @@ def route_on_status(state: AgentState):
 
 def download_artifacts(state: AgentState):
     run_id = state["latest_run_id"]
-    state["spark_logs"] = safe_download_job_logs(run_id)
-    state["spark_script"] = safe_download_spark_script()
+
+    logs_raw = CDE_MANAGER.downloadJobRunLogs(run_id, "driver/event")
+    state["spark_logs"] = json.dumps(
+        utils.sparkEventLogParser(logs_raw),
+        indent=2,
+    )
+
+    state["spark_script"] = CDE_MANAGER.downloadFileFromResource(
+        RESOURCE_NAME,
+        APPLICATION_FILE_NAME,
+    )
+
     return state
 
 
@@ -210,6 +154,7 @@ def llm_fix_script(state: AgentState):
             )
         ),
     ]
+
     response = llm.invoke(prompt)
     state["improved_script"] = response.content
     state["retried"] = True
@@ -221,38 +166,41 @@ def deploy_and_run_fixed_job(state: AgentState):
     new_job_name = f"{JOB_NAME}_fixed"
 
     CDE_MANAGER.createResource(new_resource)
-    CDE_MANAGER.uploadFileToResource(new_resource, APPLICATION_FILE_NAME, state["improved_script"])
+
+    CDE_MANAGER.uploadFileToResource(
+        new_resource,
+        APPLICATION_FILE_NAME,
+        state["improved_script"],
+    )
 
     spark_job = cdejob.CdeSparkJob(CDE_CONNECTION)
-    job_def = spark_job.createJobDefinition(new_job_name, new_resource, APPLICATION_FILE_NAME, executorMemory="2g", executorCores=2)
+    job_def = spark_job.createJobDefinition(
+        new_job_name,
+        new_resource,
+        APPLICATION_FILE_NAME,
+        executorMemory="2g",
+        executorCores=2,
+    )
+
     CDE_MANAGER.createJob(job_def)
     CDE_MANAGER.runJob(new_job_name)
 
     return state
 
-# =========================================================
-# CDE INITIALIZATION
-# =========================================================
-
-def init_cde():
-    global CDE_CONNECTION, CDE_MANAGER
-    CDE_CONNECTION = cdeconnection.CdeConnection(JOBS_API_URL, WORKLOAD_USER, WORKLOAD_PASSWORD)
-    CDE_CONNECTION.setToken()
-    CDE_MANAGER = cdemanager.CdeClusterManager(CDE_CONNECTION)
-
-init_cde()  # initialize deterministically before graph
 
 # =========================================================
 # LANGGRAPH DEFINITION
 # =========================================================
 
 graph = StateGraph(AgentState)
+
 graph.add_node("fetch_latest_run", fetch_latest_run)
 graph.add_node("download_artifacts", download_artifacts)
 graph.add_node("llm_fix_script", llm_fix_script)
 graph.add_node("deploy_and_run_fixed_job", deploy_and_run_fixed_job)
 
 graph.set_entry_point("fetch_latest_run")
+
 graph.add_conditional_edges(
     "fetch_latest_run",
     route_on_status,
@@ -268,32 +216,27 @@ graph.add_edge("deploy_and_run_fixed_job", END)
 
 app = graph.compile()
 
+
 # =========================================================
-# AGENT LOOP
+# EXECUTION (OPTION 2: MANUAL BUTTON)
 # =========================================================
 
-def run_monitor():
+def run_agent_once():
     try:
-        state = {
-            "latest_run_id": None,
-            "latest_run_status": None,
-            "spark_logs": None,
-            "spark_script": None,
-            "improved_script": None,
-            "retried": False,
-        }
-        app.invoke(state)
+        final_state = app.invoke(
+            {
+                "latest_run_id": None,
+                "latest_run_status": None,
+                "spark_logs": None,
+                "spark_script": None,
+                "improved_script": None,
+                "retried": False,
+            }
+        )
+        return f"Agent run completed. Last run status: {final_state['latest_run_status']}"
     except Exception as e:
-        print("Agent execution error:", e)
+        return f"Agent execution error: {e}"
 
-
-def agent_loop():
-    while True:
-        run_monitor()
-        time.sleep(POLL_INTERVAL_SECONDS)
-
-
-threading.Thread(target=agent_loop, daemon=True).start()
 
 # =========================================================
 # GRADIO UI
@@ -301,19 +244,32 @@ threading.Thread(target=agent_loop, daemon=True).start()
 
 def ui_refresh():
     try:
-        job_runs = safe_list_job_runs()
+        result = CDE_MANAGER.listJobRuns()
+        if result == -1 or not result:
+            return "ERROR fetching jobs", "", ""
+
+        job_runs = json.loads(result)
         latest = job_runs[-1] if job_runs else {}
     except Exception as e:
-        return f"ERROR fetching job runs: {e}", "", ""
+        return f"ERROR: {str(e)}", "", ""
 
     status = latest.get("status", "UNKNOWN")
     run_id = latest.get("id", "")
 
-    script = safe_download_spark_script() if run_id else ""
-    logs = safe_download_job_logs(run_id) if status == "FAILED" and run_id else ""
+    script = ""
+    logs = ""
+
+    if run_id:
+        script = CDE_MANAGER.downloadFileFromResource(RESOURCE_NAME, APPLICATION_FILE_NAME)
+
+    if status == "FAILED" and run_id:
+        logs_raw = CDE_MANAGER.downloadJobRunLogs(run_id, "driver/event")
+        logs = json.dumps(utils.sparkEventLogParser(logs_raw), indent=2)
 
     return status, script, logs
 
+
+init_cde()  # deterministic initialization
 
 with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator") as demo:
     gr.Markdown("## CDE Spark Job Monitor & Auto-Remediator")
@@ -327,6 +283,9 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator") as demo:
         fn=ui_refresh,
         outputs=[status_box, script_box, logs_box],
     )
+
+    run_agent_btn = gr.Button("Run Agent Now")
+    run_agent_btn.click(fn=run_agent_once, outputs=status_box)
 
 
 if __name__ == "__main__":
