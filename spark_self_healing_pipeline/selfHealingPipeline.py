@@ -15,6 +15,7 @@ from cdepy import (
     cdeconnection,
     cdemanager,
     cdejob,
+    cderesource
 )
 
 from langchain_openai import ChatOpenAI
