@@ -354,7 +354,9 @@ def ui_refresh():
 # =========================================================
 
 init_cde()
-threading.Thread(target=agent_loop, daemon=True).start()
+
+def start_agent():
+    threading.Thread(target=agent_loop, daemon=True).start()
 
 with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator") as demo:
     # Your existing UI components
@@ -366,10 +368,11 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator") as demo:
     diff_box = gr.Textbox(label="Spark Code Diff (Original vs Fixed)", lines=20)
     remediation_box = gr.Textbox(label="Remediation Summary", lines=4)
 
-    # Hidden button is no longer needed if using timer
-    refresh_btn = gr.Button("Refresh Now")
-    refresh_btn.click(
+    # Update every 10 seconds
+    timer = gr.Timer(value=10, active=True)
+    timer.tick(
         fn=ui_refresh,
+        inputs=[],
         outputs=[
             status_box,
             script_box,
@@ -378,24 +381,11 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator") as demo:
             fixed_script_box,
             diff_box,
             remediation_box,
-        ],
+        ]
     )
-
-    # Auto-refresh every 15 seconds
-    gr.Timer(
-        every=15,  # seconds
-        fn=ui_refresh,
-        outputs=[
-            status_box,
-            script_box,
-            logs_box,
-            analysis_box,
-            fixed_script_box,
-            diff_box,
-            remediation_box,
-        ],
-    )
-
+    
+    # Start the agent when the UI loads
+    demo.load(fn=start_agent)
 
 if __name__ == "__main__":
     demo.launch(
