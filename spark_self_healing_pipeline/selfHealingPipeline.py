@@ -98,11 +98,19 @@ llm = ChatOpenAI(
 # GRAPH NODES
 # =========================================================
 
-def fetch_latest_run(state: AgentState):
-    # Fetch all job runs from CDE
+import os
+import json
+from cdepy import CDE_MANAGER
+
+JOB_NAME = os.environ.get("JOB_NAME", "failing-pipeline")
+
+def fetch_latest_run(state: dict) -> dict:
+    """
+    Fetch the latest run for the job matching JOB_NAME.
+    """
+    # Get all job runs
     result = CDE_MANAGER.listJobRuns()
     if result == -1 or not result:
-        # API failed or returned nothing
         state["latest_run_id"] = None
         state["latest_run_status"] = None
         return state
@@ -112,7 +120,7 @@ def fetch_latest_run(state: AgentState):
     except Exception as e:
         raise RuntimeError(f"Failed to parse listJobRuns() response: {result}") from e
 
-    # Filter runs by the configured JOB_NAME
+    # Filter runs by exact JOB_NAME
     job_runs = [r for r in runs if r.get("job") == JOB_NAME]
 
     if not job_runs:
@@ -120,14 +128,12 @@ def fetch_latest_run(state: AgentState):
         state["latest_run_status"] = None
         return state
 
-    # Pick the latest run based on the 'started' timestamp
+    # Pick the latest run based on 'started' timestamp
     latest = max(job_runs, key=lambda r: r.get("started", ""))
-    state["latest_run_id"] = str(latest.get("id"))  # ensure it's a string
+    state["latest_run_id"] = str(latest.get("id"))
     state["latest_run_status"] = latest.get("status", "").upper()
 
     return state
-
-
 
 def route_on_status(state: AgentState):
     if state["latest_run_status"] == "FAILED" and not state["retried"]:
@@ -331,22 +337,38 @@ def agent_loop():
 # UI
 # =========================================================
 
-def ui_refresh():
-    runs = json.loads(CDE_MANAGER.listJobRuns()).get("runs", [])
-    if not runs:
-        return "", "", "", "", "", "", ""
+def ui_refresh(state: dict) -> tuple:
+    """
+    Refresh UI elements: job status, script, driver logs.
+    """
+    # Step 1: Fetch latest run for JOB_NAME
+    state = fetch_latest_run(state)
+    run_id = state.get("latest_run_id")
 
-    latest = max(runs, key=lambda r: r.get("started", ""))
-    run_id = str(latest.get("id"))
+    # Defaults if no run exists
+    latest_status = state.get("latest_run_status") or "N/A"
+    spark_script = ""
+    spark_logs = ""
 
-    status = latest.get("status", "").upper()
-    script = CDE_MANAGER.downloadFileFromResource(
-        RESOURCE_NAME, APPLICATION_FILE_NAME
-    ) or ""
+    # Step 2: Fetch Spark script and logs for the exact run
+    if run_id:
+        try:
+            run_info_raw = CDE_MANAGER.getJobRun(run_id)
+            run_info = json.loads(run_info_raw)
+            # Ensure run belongs to JOB_NAME
+            if run_info.get("job") == JOB_NAME:
+                # Fetch spark script
+                spark_script = run_info.get("spark", {}).get("spec", {}).get("file", "")
+                # Fetch driver stdout logs
+                logs_raw = CDE_MANAGER.downloadJobRunLogs(run_id, "driver/stdout") or ""
+                spark_logs = logs_raw
+            else:
+                # Run does not match JOB_NAME exactly
+                spark_logs = "[No logs: latest run is not for JOB_NAME]"
+        except Exception as e:
+            spark_logs = f"[Error fetching logs: {e}]"
 
-    logs = CDE_MANAGER.downloadJobRunLogs(run_id, "driver/stdout") or ""
-
-    return status, script, logs, "", "", "", ""
+    return latest_status, spark_script, spark_logs
 
 
 # =========================================================
@@ -383,7 +405,7 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator") as demo:
             remediation_box,
         ]
     )
-    
+
     # Start the agent when the UI loads
     demo.load(fn=start_agent)
 
