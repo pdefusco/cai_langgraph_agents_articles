@@ -362,31 +362,29 @@ def ui_refresh():
 init_cde()
 threading.Thread(target=agent_loop, daemon=True).start()
 
-with gr.Blocks(title="CDE Spark Job Auto-Remediator") as demo:
+with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator") as demo:
     gr.Markdown("## CDE Spark Job Monitor & Auto-Remediator")
 
-    status_box = gr.Textbox(label="Job Status")
-    script_box = gr.Code(label="Original Spark Script", language="python")
-    logs_box = gr.Textbox(label="Driver Stdout Logs", lines=15)
-
+    status_box = gr.Textbox(label="Latest Job Status")
+    script_box = gr.Code(label="Spark Script", language="python")
+    logs_box = gr.Code(label="Driver Stdout Logs", language="text")
     analysis_box = gr.Textbox(
         label="LLM Analysis (Root Cause & Explanation)", lines=10
     )
     fixed_script_box = gr.Code(
         label="Improved Spark Script", language="python"
     )
-    diff_box = gr.Textbox(
-        label="Spark Code Diff (Original vs Fixed)",
-        lines=20,
-        interactive=False,
+    diff_box = gr.Code(
+        label="Spark Code Diff (Original vs Fixed)", language="text"
     )
     remediation_box = gr.Textbox(
         label="Remediation Summary", lines=4
     )
 
-    refresh_btn = gr.Button("Refresh")
-    refresh_btn.click(
-        fn=ui_refresh,
+    # Interval auto-refresh every 15 seconds
+    refresh_interval = gr.Interval(
+        update=ui_refresh,
+        every=15,  # seconds
         outputs=[
             status_box,
             script_box,
@@ -400,7 +398,8 @@ with gr.Blocks(title="CDE Spark Job Auto-Remediator") as demo:
 
 if __name__ == "__main__":
     demo.launch(
+        share=False,
+        show_error=True,
         server_name="127.0.0.1",
         server_port=int(os.getenv("CDSW_APP_PORT")),
-        show_error=True,
     )
