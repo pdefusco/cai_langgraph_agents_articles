@@ -261,13 +261,17 @@ def deploy_and_run_fixed_job(state: AgentState):
     )
 
     spark_job = cdejob.CdeSparkJob(CDE_CONNECTION)
-    job_def = spark_job.createJobDefinition(
-        new_job_name,
-        new_resource,
-        local_file,
-        executorMemory="2g",
-        executorCores=2,
-    )
+    try:
+        job_definition = CDE_MANAGER.createJobDefinition(
+            CDE_JOB_NAME=NEW_JOB_NAME,
+            CDE_RESOURCE_NAME=RESOURCE_NAME,
+            APPLICATION_FILE_NAME=LOCAL_FILE_NAME,
+            # Pass the Python virtual environment to attach
+            pythonEnvResourceName="datagen-env"
+        )
+        print(f"Job definition created: {job_definition}")
+    except Exception as e:
+        raise RuntimeError(f"Failed to create job definition: {e}")
 
     CDE_MANAGER.createJob(job_def)
     CDE_MANAGER.runJob(new_job_name)
