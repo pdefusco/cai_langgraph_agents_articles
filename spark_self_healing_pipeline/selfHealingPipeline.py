@@ -191,8 +191,11 @@ def ui_refresh():
         print("Raw listJobRuns in UI:", repr(result))
         if result == -1 or not result:
             return "ERROR: -1", "", ""
-        job_runs = json.loads(result)
+
+        job_runs_dict = json.loads(result)
+        job_runs = job_runs_dict.get("runs", [])
         latest = job_runs[-1] if job_runs else {}
+
     except Exception as e:
         return f"ERROR: {str(e)}", "", ""
 
@@ -207,6 +210,7 @@ def ui_refresh():
         logs = json.dumps(utils.sparkEventLogParser(logs_raw), indent=2)
 
     return status, script, logs
+
 
 # =========================================================
 # GRADIO UI
