@@ -357,31 +357,19 @@ init_cde()
 threading.Thread(target=agent_loop, daemon=True).start()
 
 with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator") as demo:
-    gr.Markdown("## CDE Spark Job Monitor & Auto-Remediator")
-
+    # Your existing UI components
     status_box = gr.Textbox(label="Latest Job Status")
     script_box = gr.Code(label="Spark Script", language="python")
-    logs_box = gr.Textbox(label="Driver Stdout Logs", lines=20, interactive=False)
-    analysis_box = gr.Textbox(
-        label="LLM Analysis (Root Cause & Explanation)", lines=10
-    )
-    fixed_script_box = gr.Code(
-        label="Improved Spark Script", language="python"
-    )
-    diff_box = gr.Textbox(
-        label="Spark Code Diff (Original vs Fixed)",
-        lines=20,
-        interactive=False
-    )
+    logs_box = gr.Textbox(label="Driver Stdout Logs", lines=15)
+    analysis_box = gr.Textbox(label="LLM Analysis (Root Cause & Explanation)", lines=10)
+    fixed_script_box = gr.Code(label="Improved Spark Script", language="python")
+    diff_box = gr.Textbox(label="Spark Code Diff (Original vs Fixed)", lines=20)
+    remediation_box = gr.Textbox(label="Remediation Summary", lines=4)
 
-    remediation_box = gr.Textbox(
-        label="Remediation Summary", lines=4
-    )
-
-    # Interval auto-refresh every 15 seconds
-    refresh_interval = gr.Interval(
-        update=ui_refresh,
-        every=15,  # seconds
+    # Hidden button is no longer needed if using timer
+    refresh_btn = gr.Button("Refresh Now")
+    refresh_btn.click(
+        fn=ui_refresh,
         outputs=[
             status_box,
             script_box,
@@ -392,6 +380,22 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator") as demo:
             remediation_box,
         ],
     )
+
+    # Auto-refresh every 15 seconds
+    gr.Timer(
+        every=15,  # seconds
+        fn=ui_refresh,
+        outputs=[
+            status_box,
+            script_box,
+            logs_box,
+            analysis_box,
+            fixed_script_box,
+            diff_box,
+            remediation_box,
+        ],
+    )
+
 
 if __name__ == "__main__":
     demo.launch(
