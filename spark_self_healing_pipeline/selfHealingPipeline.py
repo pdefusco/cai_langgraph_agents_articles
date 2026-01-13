@@ -100,6 +100,7 @@ llm = ChatOpenAI(
 
 def fetch_latest_run(state: AgentState):
     result = CDE_MANAGER.listJobRuns()
+    print(result)
     runs = json.loads(result).get("runs", [])
     if not runs:
         return state
