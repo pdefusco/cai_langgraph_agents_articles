@@ -99,16 +99,34 @@ llm = ChatOpenAI(
 # =========================================================
 
 def fetch_latest_run(state: AgentState):
+    # Fetch all job runs from CDE
     result = CDE_MANAGER.listJobRuns()
-    print(result)
-    runs = json.loads(result).get("runs", [])
-    if not runs:
+    if result == -1 or not result:
+        # API failed or returned nothing
+        state["latest_run_id"] = None
+        state["latest_run_status"] = None
         return state
 
-    latest = max(runs, key=lambda r: r.get("started", ""))
-    state["latest_run_id"] = str(latest.get("id"))
+    try:
+        runs = json.loads(result).get("runs", [])
+    except Exception as e:
+        raise RuntimeError(f"Failed to parse listJobRuns() response: {result}") from e
+
+    # Filter runs by the configured JOB_NAME
+    job_runs = [r for r in runs if r.get("job") == JOB_NAME]
+
+    if not job_runs:
+        state["latest_run_id"] = None
+        state["latest_run_status"] = None
+        return state
+
+    # Pick the latest run based on the 'started' timestamp
+    latest = max(job_runs, key=lambda r: r.get("started", ""))
+    state["latest_run_id"] = str(latest.get("id"))  # ensure it's a string
     state["latest_run_status"] = latest.get("status", "").upper()
+
     return state
+
 
 
 def route_on_status(state: AgentState):
