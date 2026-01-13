@@ -361,7 +361,7 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator") as demo:
 
     status_box = gr.Textbox(label="Latest Job Status")
     script_box = gr.Code(label="Spark Script", language="python")
-    logs_box = gr.Code(label="Driver Stdout Logs", language="text")
+    logs_box = gr.Textbox(label="Driver Stdout Logs", lines=20, interactive=False)
     analysis_box = gr.Textbox(
         label="LLM Analysis (Root Cause & Explanation)", lines=10
     )
