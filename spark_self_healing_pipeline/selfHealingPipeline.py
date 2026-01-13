@@ -186,7 +186,10 @@ def deploy_and_run_fixed_job(state: AgentState):
     new_resource = f"{RESOURCE_NAME}_fixed"
     new_job_name = f"{JOB_NAME}_fixed"
 
-    CDE_MANAGER.createResource(new_resource)
+    CDE_RESOURCE = cderesource.CdeFilesResource(new_resource)
+    cdeFilesResourceDefinition = CDE_RESOURCE.createResourceDefinition()
+
+    CDE_MANAGER.createResource(cdeFilesResourceDefinition)
 
     # ✅ WRITE SCRIPT TO LOCAL FILE FIRST
     with tempfile.NamedTemporaryFile(
