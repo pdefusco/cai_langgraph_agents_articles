@@ -188,7 +188,7 @@ app = graph.compile()
 def ui_refresh():
     try:
         result = CDE_MANAGER.listJobRuns()
-        print("Raw listJobRuns in UI:", repr(result))
+        #print("Raw listJobRuns in UI:", repr(result))
         if result == -1 or not result:
             return "ERROR: -1", "", ""
 
