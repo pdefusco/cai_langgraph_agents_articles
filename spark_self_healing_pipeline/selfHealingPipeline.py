@@ -153,6 +153,9 @@ def download_artifacts(state: AgentState):
     return state
 
 
+import difflib
+import re
+
 def llm_analyze_and_fix(state: AgentState):
     prompt = [
         SystemMessage(
@@ -180,11 +183,24 @@ def llm_analyze_and_fix(state: AgentState):
     response = llm.invoke(prompt)
     text = response.content
 
-    analysis, fixed_script = text.split("=== FIXED SCRIPT ===", 1)
+    # Split the analysis and fixed script
+    try:
+        analysis, fixed_script = text.split("=== FIXED SCRIPT ===", 1)
+    except ValueError:
+        # If splitting fails, treat entire output as analysis
+        analysis = text
+        fixed_script = ""
+
+    # Clean analysis and fixed script
     analysis = analysis.replace("=== ANALYSIS ===", "").strip()
     fixed_script = fixed_script.strip()
 
-    # Generate diff
+    # Strip Markdown code fences if present in fixed script
+    fixed_script = re.sub(r"^```(?:python)?\n", "", fixed_script)  # remove opening ``` or ```python
+    fixed_script = re.sub(r"\n```$", "", fixed_script)             # remove closing ```
+    fixed_script = fixed_script.strip()
+
+    # Generate diff safely
     diff = difflib.unified_diff(
         state["spark_script"].splitlines(),
         fixed_script.splitlines(),
@@ -193,11 +209,14 @@ def llm_analyze_and_fix(state: AgentState):
         lineterm="",
     )
 
+    # Update state
     state["llm_analysis"] = analysis
     state["improved_script"] = fixed_script
     state["code_diff"] = "\n".join(diff)
     state["retried"] = True
+
     return state
+
 
 import tempfile
 import os
