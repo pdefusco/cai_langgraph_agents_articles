@@ -129,7 +129,7 @@ def download_artifacts(state: AgentState):
         state["spark_script"] = None
         return state
 
-    logs_raw = CDE_MANAGER.downloadJobRunLogs(run_id, "driver/event")
+    logs_raw = CDE_MANAGER.downloadJobRunLogs(run_id, "driver/stdout")
     if not logs_raw:
         print(f"No logs returned for run {run_id}")
         state["spark_logs"] = None
