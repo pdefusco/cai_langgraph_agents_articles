@@ -100,7 +100,6 @@ llm = ChatOpenAI(
 
 import os
 import json
-from cdepy import CDE_MANAGER
 
 JOB_NAME = os.environ.get("JOB_NAME", "failing-pipeline")
 
