@@ -103,10 +103,13 @@ import json
 
 JOB_NAME = os.environ.get("JOB_NAME", "failing-pipeline")
 
-def fetch_latest_run(state: dict) -> dict:
+def fetch_latest_run(state: dict = None) -> dict:
     """
     Fetch the latest run for the job matching JOB_NAME.
     """
+    if state is None:
+        state = {}  # Initialize empty dict if None
+
     # Get all job runs
     result = CDE_MANAGER.listJobRuns()
     if result == -1 or not result:
@@ -133,6 +136,7 @@ def fetch_latest_run(state: dict) -> dict:
     state["latest_run_status"] = latest.get("status", "").upper()
 
     return state
+
 
 def route_on_status(state: AgentState):
     if state["latest_run_status"] == "FAILED" and not state["retried"]:
@@ -336,38 +340,82 @@ def agent_loop():
 # UI
 # =========================================================
 
-def ui_refresh(state: dict) -> tuple:
+def ui_refresh(state: dict = None):
     """
-    Refresh UI elements: job status, script, driver logs.
+    Refresh the UI with the latest CDE Spark job information.
+    Returns outputs for:
+    - status_box
+    - script_box
+    - logs_box
+    - analysis_box
+    - fixed_script_box
+    - diff_box
+    - remediation_box
     """
-    # Step 1: Fetch latest run for JOB_NAME
-    state = fetch_latest_run(state)
-    run_id = state.get("latest_run_id")
+    import os
 
-    # Defaults if no run exists
-    latest_status = state.get("latest_run_status") or "N/A"
+    # Ensure state is always a dict
+    state = state or {}
+
+    # Step 1: Fetch the latest run for the job named by JOB_NAME
+    state = fetch_latest_run(state)
+
+    latest_run_id = state.get("latest_run_id")
+    latest_run_status = state.get("latest_run_status", "UNKNOWN")
+
+    # Initialize outputs
     spark_script = ""
     spark_logs = ""
+    llm_analysis = ""
+    improved_script = ""
+    code_diff = ""
+    remediation_summary = ""
 
-    # Step 2: Fetch Spark script and logs for the exact run
-    if run_id:
+    if latest_run_id:
+        # Step 2: Download Spark driver stdout logs
         try:
-            run_info_raw = CDE_MANAGER.getJobRun(run_id)
-            run_info = json.loads(run_info_raw)
-            # Ensure run belongs to JOB_NAME
-            if run_info.get("job") == JOB_NAME:
-                # Fetch spark script
-                spark_script = run_info.get("spark", {}).get("spec", {}).get("file", "")
-                # Fetch driver stdout logs
-                logs_raw = CDE_MANAGER.downloadJobRunLogs(run_id, "driver/stdout") or ""
-                spark_logs = logs_raw
-            else:
-                # Run does not match JOB_NAME exactly
-                spark_logs = "[No logs: latest run is not for JOB_NAME]"
+            logs_raw = CDE_MANAGER.downloadJobRunLogs(str(latest_run_id), "driver/stdout") or ""
+            spark_logs = logs_raw
         except Exception as e:
-            spark_logs = f"[Error fetching logs: {e}]"
+            spark_logs = f"Failed to fetch logs: {e}"
 
-    return latest_status, spark_script, spark_logs
+        # Step 3: Fetch the original Spark script if available
+        try:
+            job_runs_raw = CDE_MANAGER.listJobRuns()
+            job_runs = json.loads(job_runs_raw).get("runs", [])
+            for run in job_runs:
+                if str(run.get("id")) == str(latest_run_id):
+                    spark_script = CDE_MANAGER.downloadJobScript(run.get("job")) or ""
+                    break
+        except Exception as e:
+            spark_script = f"Failed to fetch script: {e}"
+
+        # Step 4: Run LLM analyze & fix node
+        try:
+            state["spark_script"] = spark_script
+            state["spark_logs"] = spark_logs
+            state = llm_analyze_and_fix(state)
+
+            llm_analysis = state.get("llm_analysis", "")
+            improved_script = state.get("improved_script", "")
+            code_diff = state.get("code_diff", "")
+            remediation_summary = f"New job/resource created: {state.get('remediation', '')}"
+        except Exception as e:
+            llm_analysis = f"LLM analysis failed: {e}"
+
+    else:
+        latest_run_status = "No runs found for job: " + os.environ.get("JOB_NAME", "<unset>")
+
+    return (
+        latest_run_status,
+        spark_script,
+        spark_logs,
+        llm_analysis,
+        improved_script,
+        code_diff,
+        remediation_summary
+    )
+
 
 
 # =========================================================
