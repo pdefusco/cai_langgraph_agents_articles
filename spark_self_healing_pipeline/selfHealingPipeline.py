@@ -159,6 +159,9 @@ import re
 import difflib
 import re
 
+import difflib
+import re
+
 def llm_analyze_and_fix(state: AgentState):
     prompt = [
         SystemMessage(
@@ -196,11 +199,13 @@ def llm_analyze_and_fix(state: AgentState):
     # Clean analysis
     analysis = analysis.replace("=== ANALYSIS ===", "").strip()
 
-    # Remove any leading/trailing Markdown fences and whitespace
-    fixed_script = fixed_script.strip()                   # remove leading/trailing whitespace
-    fixed_script = re.sub(r"^```(?:python)?\s*", "", fixed_script, flags=re.MULTILINE)
-    fixed_script = re.sub(r"\s*```$", "", fixed_script, flags=re.MULTILINE)
-    fixed_script = fixed_script.strip()
+    # ===== Aggressively clean the fixed script =====
+    fixed_script = fixed_script.strip()  # remove leading/trailing whitespace
+    # Remove any leading ``` or ```python (even with newlines or spaces)
+    fixed_script = re.sub(r"^```(?:python)?[\r\n]*", "", fixed_script)
+    # Remove any trailing ```
+    fixed_script = re.sub(r"[\r\n]*```$", "", fixed_script)
+    fixed_script = fixed_script.strip()  # final strip
 
     # Generate diff
     diff = difflib.unified_diff(
@@ -218,6 +223,7 @@ def llm_analyze_and_fix(state: AgentState):
     state["retried"] = True
 
     return state
+
 
 
 import tempfile
