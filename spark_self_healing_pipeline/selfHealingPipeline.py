@@ -258,7 +258,7 @@ def ui_refresh():
 
     if run_id:
         script = CDE_MANAGER.downloadFileFromResource(RESOURCE_NAME, APPLICATION_FILE_NAME) or ""
-        logs_raw = CDE_MANAGER.downloadJobRunLogs(str(run_id), "driver/event") or ""
+        logs_raw = CDE_MANAGER.downloadJobRunLogs(str(run_id), "driver/stdout") or ""
         if logs_raw:
             logs = json.dumps(utils.sparkEventLogParser(logs_raw), indent=2)
 
