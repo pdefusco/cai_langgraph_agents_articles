@@ -179,30 +179,54 @@ def llm_analyze_and_fix(state: AgentState):
     state["retried"] = True
     return state
 
+import tempfile
+import os
 
 def deploy_and_run_fixed_job(state: AgentState):
     new_resource = f"{RESOURCE_NAME}_fixed"
-    new_job = f"{JOB_NAME}_fixed"
+    new_job_name = f"{JOB_NAME}_fixed"
 
     CDE_MANAGER.createResource(new_resource)
+
+    # ✅ WRITE SCRIPT TO LOCAL FILE FIRST
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        suffix=".py",
+        delete=False
+    ) as f:
+        f.write(state["improved_script"])
+        local_path = f.name
+
+    local_dir = os.path.dirname(local_path)
+    local_file = os.path.basename(local_path)
+
+    # ✅ NOW upload using cdepy expectations
     CDE_MANAGER.uploadFileToResource(
         new_resource,
-        APPLICATION_FILE_NAME,
-        state["improved_script"],
+        local_dir,
+        local_file,
     )
 
     spark_job = cdejob.CdeSparkJob(CDE_CONNECTION)
     job_def = spark_job.createJobDefinition(
-        new_job,
+        new_job_name,
         new_resource,
-        APPLICATION_FILE_NAME,
+        local_file,
+        executorMemory="2g",
+        executorCores=2,
     )
 
     CDE_MANAGER.createJob(job_def)
-    CDE_MANAGER.runJob(new_job)
+    CDE_MANAGER.runJob(new_job_name)
 
-    state["new_resource_name"] = new_resource
-    state["new_job_name"] = new_job
+    # Optional cleanup
+    os.remove(local_path)
+
+    state["remediation_summary"] = (
+        f"Created resource '{new_resource}', "
+        f"job '{new_job_name}', and submitted a new run."
+    )
+
     return state
 
 
