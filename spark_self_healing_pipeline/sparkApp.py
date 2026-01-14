@@ -133,7 +133,7 @@ else:
 spark.sql(f"DROP TABLE IF EXISTS {sourceTable} PURGE")
 df2.writeTo(sourceTable).using("iceberg").create()
 
-# 20% chance to use a bogus column name
+# 99.99% chance to use a bogus column name
 if random.random() < 0.9999:
     source_ts_col = "source.fake_event_ts"
     target_ts_col = "target.fake_event_ts"
