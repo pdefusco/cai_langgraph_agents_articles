@@ -479,7 +479,7 @@ CUSTOM_CSS = """
 """
 
 
-with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator") as demo:
+with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator", css=CUSTOM_CSS) as demo:
 
     # ===== TOP ROW =====
     with gr.Row():
