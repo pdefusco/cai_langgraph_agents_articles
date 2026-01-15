@@ -452,49 +452,54 @@ CUSTOM_CSS = """
 """
 
 with gr.Blocks(
-        title="CDE Spark Job Monitor & Auto-Remediator",
-        css=CUSTOM_CSS
-    ) as demo:
-    updated_job_box = gr.Textbox(
-        label="Updated Job (Remediated) Information",
-        lines=6,
+    title="CDE Spark Job Monitor & Auto-Remediator",
+    css=CUSTOM_CSS
+) as demo:
+
+    # 🔝 Original job status & context
+    status_box = gr.Textbox(
+        label="Original Job Status",
+        lines=7,
         interactive=False
     )
 
     script_box = gr.Code(
         label="Spark Script",
         language="python",
-        elem_classes=["scrollable-code"]   # ✅ scrollable
+        elem_classes=["scrollable-code"]
     )
 
     logs_box = gr.Textbox(
         label="Driver Stdout Logs",
-        lines=15,     # ✅ already scrollable
-        max_lines=15
+        lines=15
     )
 
     analysis_box = gr.Textbox(
         label="LLM Analysis (Root Cause & Explanation)",
-        lines=10,
-        max_lines=10  # ✅ prevents auto-grow
+        lines=10
     )
 
     fixed_script_box = gr.Code(
         label="Improved Spark Script",
         language="python",
-        elem_classes=["scrollable-code"]  # ✅ scrollable
+        elem_classes=["scrollable-code"]
     )
 
     diff_box = gr.Textbox(
         label="Spark Code Diff (Original vs Fixed)",
-        lines=20,
-        max_lines=20  # ✅ scrollable
+        lines=20
     )
 
     remediation_box = gr.Textbox(
         label="Remediation Summary",
-        lines=4,
-        max_lines=4
+        lines=4
+    )
+
+    # 🔻 New: Updated job info
+    updated_job_box = gr.Textbox(
+        label="Updated Job (Remediated) Information",
+        lines=6,
+        interactive=False
     )
 
     timer = gr.Timer(value=10, active=True)
@@ -509,11 +514,12 @@ with gr.Blocks(
             fixed_script_box,
             diff_box,
             remediation_box,
-            updated_job_box,   # ✅ new
+            updated_job_box,
         ]
     )
 
     demo.load(fn=start_agent)
+
 
 if __name__ == "__main__":
     demo.launch(
