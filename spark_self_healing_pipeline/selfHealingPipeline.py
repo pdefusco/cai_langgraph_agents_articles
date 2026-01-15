@@ -431,6 +431,7 @@ def start_agent():
     threading.Thread(target=agent_loop, daemon=True).start()
 
 css = """
+/* Page title at the top */
 .page-title {
     font-size: 24px;
     font-weight: bold;
@@ -438,6 +439,7 @@ css = """
     text-align: center;
 }
 
+/* Titles inside status/remediation boxes */
 .status-box-title {
     font-weight: bold;
     font-size: 16px;
@@ -445,6 +447,7 @@ css = """
     color: #333;
 }
 
+/* Boxes themselves */
 .status-box {
     border: 1px solid #ccc;
     padding: 8px;
@@ -452,10 +455,10 @@ css = """
     background-color: #f9f9f9;
 }
 
+/* Scrollable code for spark scripts */
 .scrollable-code .gr-code {
-    max-height: 300px !important;   /* constrain height */
-    overflow-y: auto !important;    /* enable vertical scroll */
-    white-space: pre-wrap;          /* wrap long lines */
+    max-height: 300px;
+    overflow-y: auto;
 }
 """
 
@@ -481,24 +484,20 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto Remediator", css=css) as demo
 
     # Second row: code, logs, analysis
     with gr.Row():
-        with gr.Column():
-            script_box = gr.Code(
-                label="Spark Script",
-                language="python",
-                show_label=True,
-                interactive=False,
-                elem_classes=["scrollable-code"],
-                height=None
-            )
-        with gr.Column():
-            fixed_script_box = gr.Code(
-                label="Improved Spark Script",
-                language="python",
-                show_label=True,
-                interactive=False,
-                elem_classes=["scrollable-code"],
-                height=None
-            )
+        script_box = gr.Code(
+            label="Spark Script",
+            language="python",
+            show_label=True,
+            interactive=False,
+            elem_classes=["scrollable-code"]
+        )
+        fixed_script_box = gr.Code(
+            label="Improved Spark Script",
+            language="python",
+            show_label=True,
+            interactive=False,
+            elem_classes=["scrollable-code"]
+        )
 
     # Third row: logs, LLM analysis, code diff
     with gr.Row():
