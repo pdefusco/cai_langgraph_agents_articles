@@ -468,12 +468,16 @@ def start_agent():
     threading.Thread(target=agent_loop, daemon=True).start()
 
 CUSTOM_CSS = """
-.scrollable-code .cm-scroller {
+.scrollable-code {
     max-height: 300px;
-    min-height: 300px;
-    font-size: 12px;
+    overflow-y: scroll;
+    font-family: monospace;
+    background-color: #f5f5f5;
+    padding: 8px;
+    border-radius: 4px;
 }
 """
+
 
 with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator") as demo:
 
@@ -504,7 +508,8 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator") as demo:
     script_box = gr.Code(
         label="Spark Script",
         language="python",
-        elem_classes=["scrollable-code"]
+        elem_classes=["scrollable-code"],
+        interactive=False
     )
 
     logs_box = gr.Textbox(
@@ -520,7 +525,8 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator") as demo:
     fixed_script_box = gr.Code(
         label="Improved Spark Script",
         language="python",
-        elem_classes=["scrollable-code"]
+        elem_classes=["scrollable-code"],
+        interactive=False
     )
 
     diff_box = gr.Textbox(
