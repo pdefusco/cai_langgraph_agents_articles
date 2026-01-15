@@ -393,17 +393,19 @@ def ui_refresh(state: dict = None):
             llm_analysis = f"Failed to fetch logs or script: {e}"
 
     status_text = (
-        f"**Job Name:** {JOB_NAME}\n"
-        f"**Latest Run ID:** {latest_run_id or 'N/A'}\n"
-        f"**Status:** {latest_run_status}\n"
-        f"[Jobs API URL]({JOBS_API_URL})\n"
-        f"**Application File:** {APPLICATION_FILE_NAME}"
+        f"Job Name: {JOB_NAME}\n"
+        f"Latest Run ID: {latest_run_id or 'N/A'}\n"
+        f"Status: {latest_run_status}\n"
+        f"Jobs API URL: {JOBS_API_URL}\n"
+        f"Application File: {APPLICATION_FILE_NAME}"
     )
+
     remediation_summary_text = LAST_REMEDIATION_INFO.get("summary", "No remediation info yet.")
+
     updated_job_text = (
-        f"**Job Name:** {LAST_REMEDIATION_INFO.get('job_name', 'N/A')}\n"
-        f"**Resource Name:** {LAST_REMEDIATION_INFO.get('resource_name', 'N/A')}\n"
-        f"**Application File:** {APPLICATION_FILE_NAME}"
+        f"Job Name: {LAST_REMEDIATION_INFO.get('job_name', 'N/A')}\n"
+        f"Resource Name: {LAST_REMEDIATION_INFO.get('resource_name', 'N/A')}\n"
+        f"Application File: {APPLICATION_FILE_NAME}"
     )
 
     return (
@@ -466,17 +468,20 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto Remediator", css=css) as demo
 
     # Top row: original job status, remediation summary, updated job info
     with gr.Row():
-        status_box = gr.Markdown(
+        status_box = gr.Textbox(
             label="Original Job Status",
-            # elem_classes=["status-box"]  # REMOVE this
+            lines=5,
+            interactive=False
         )
-        remediation_summary_box = gr.Markdown(
+        remediation_summary_box = gr.Textbox(
             label="Remediation Summary",
-            # elem_classes=["status-box"]  # REMOVE this
+            lines=5,
+            interactive=False
         )
-        updated_job_box = gr.Markdown(
+        updated_job_box = gr.Textbox(
             label="Updated Job (Remediated) Information",
-            # elem_classes=["status-box"]  # REMOVE this
+            lines=5,
+            interactive=False
         )
 
     # Second row: code, logs, analysis
