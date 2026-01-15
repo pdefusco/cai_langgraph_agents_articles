@@ -372,6 +372,25 @@ def ui_refresh(state: dict = None):
 
     state = state or {}
 
+    # In ui_refresh, after building the text for top three boxes:
+    status_text = (
+        "<div class='status-box-title'>Original Job Status</div>\n"
+        + status_text
+    )
+    remediation_summary_text = (
+        "<div class='status-box-title'>Remediation Summary</div>\n"
+        + (remediation_summary or "No remediation info yet.")
+    )
+    updated_job_text = (
+        "<div class='status-box-title'>Updated Job (Remediated) Information</div>\n"
+        + (updated_job_info or "No info yet.")
+    )
+
+    # Ensure non-empty to prevent grayed-out style
+    status_text = status_text or "<div class='status-box-title'>Original Job Status</div>\nNo job info yet."
+    remediation_summary_text = remediation_summary_text or "<div class='status-box-title'>Remediation Summary</div>\nNo remediation info yet."
+    updated_job_text = updated_job_text or "<div class='status-box-title'>Updated Job (Remediated) Information</div>\nNo info yet."
+
     # Default values
     status_text = "<div class='status-box-title'>Original Job Status</div>\nNo job info yet."
     remediation_summary_text = "<div class='status-box-title'>Remediation Summary</div>\nNo remediation info yet."
@@ -554,7 +573,7 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto Remediator", css=css) as demo
         )
 
     # Timer to refresh UI every 10 seconds
-    timer = gr.Timer(value=10, active=True)
+    timer = gr.Timer(value=120, active=True)  # refresh every 2 minutes
     timer.tick(
         fn=ui_refresh,
         inputs=[],
@@ -566,7 +585,7 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto Remediator", css=css) as demo
             logs_box,
             analysis_box,
             fixed_script_box,
-            diff_box
+            diff_box,
         ]
     )
 
