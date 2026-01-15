@@ -44,6 +44,11 @@ LLM_CDP_TOKEN = os.environ["LLM_CDP_TOKEN"]
 
 POLL_INTERVAL_SECONDS = 30
 
+LAST_REMEDIATION_INFO = {
+    "summary": "",
+    "job_name": "",
+    "resource_name": "",
+}
 
 # =========================================================
 # GLOBAL CDE OBJECTS
@@ -279,14 +284,24 @@ def deploy_and_run_fixed_job(state: AgentState):
     CDE_MANAGER.createJob(job_def)
     CDE_MANAGER.runJob(new_job_name)
 
-    state["new_job_name"] = new_job_name
-    state["new_resource_name"] = new_resource
-    state["remediation_summary"] = (
+    summary = (
         f"New job created: {new_job_name}\n"
         f"New resource created: {new_resource}\n"
         f"Script uploaded: {APPLICATION_FILE_NAME}\n"
         f"Job submitted successfully."
     )
+
+    state["remediation_summary"] = summary
+    state["new_job_name"] = new_job_name
+    state["new_resource_name"] = new_resource
+
+    # ✅ GLOBAL CACHE FOR UI
+    global LAST_REMEDIATION_INFO
+    LAST_REMEDIATION_INFO = {
+        "summary": summary,
+        "job_name": new_job_name,
+        "resource_name": new_resource,
+    }
 
     return state
 
@@ -415,7 +430,15 @@ def ui_refresh(state: dict = None):
             llm_analysis = state.get("llm_analysis", "")
             improved_script = state.get("improved_script", "")
             code_diff = state.get("code_diff", "")
-            remediation_summary = state.get("remediation_summary", "")
+            global LAST_REMEDIATION_INFO
+
+            remediation_summary = LAST_REMEDIATION_INFO.get("summary", "")
+
+            updated_job_info = (
+                f"Job Name: {LAST_REMEDIATION_INFO.get('job_name', '')}\n"
+                f"Resource Name: {LAST_REMEDIATION_INFO.get('resource_name', '')}\n"
+                f"Application File: {APPLICATION_FILE_NAME}"
+            )
         except Exception as e:
             llm_analysis = f"LLM analysis failed: {e}"
 
