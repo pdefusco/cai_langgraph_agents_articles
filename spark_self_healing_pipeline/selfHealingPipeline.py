@@ -22,6 +22,9 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.graph import StateGraph, END
 
+import gradio as gr
+print("Gradio runtime version:", gr.__version__)
+
 
 # =========================================================
 # USER CONFIGURATION
