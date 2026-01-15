@@ -431,16 +431,47 @@ def start_agent():
     threading.Thread(target=agent_loop, daemon=True).start()
 
 with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator") as demo:
-    # Your existing UI components
-    status_box = gr.Textbox(label="Latest Job Status")
-    script_box = gr.Code(label="Spark Script", language="python")
-    logs_box = gr.Textbox(label="Driver Stdout Logs", lines=15)
-    analysis_box = gr.Textbox(label="LLM Analysis (Root Cause & Explanation)", lines=10)
-    fixed_script_box = gr.Code(label="Improved Spark Script", language="python")
-    diff_box = gr.Textbox(label="Spark Code Diff (Original vs Fixed)", lines=20)
-    remediation_box = gr.Textbox(label="Remediation Summary", lines=4)
+    status_box = gr.Textbox(
+        label="Latest Job Status",
+        lines=2
+    )
 
-    # Update every 10 seconds
+    script_box = gr.Code(
+        label="Spark Script",
+        language="python",
+        height=300   # ✅ scrollable
+    )
+
+    logs_box = gr.Textbox(
+        label="Driver Stdout Logs",
+        lines=15,     # ✅ already scrollable
+        max_lines=15
+    )
+
+    analysis_box = gr.Textbox(
+        label="LLM Analysis (Root Cause & Explanation)",
+        lines=10,
+        max_lines=10  # ✅ prevents auto-grow
+    )
+
+    fixed_script_box = gr.Code(
+        label="Improved Spark Script",
+        language="python",
+        height=300   # ✅ scrollable
+    )
+
+    diff_box = gr.Textbox(
+        label="Spark Code Diff (Original vs Fixed)",
+        lines=20,
+        max_lines=20  # ✅ scrollable
+    )
+
+    remediation_box = gr.Textbox(
+        label="Remediation Summary",
+        lines=4,
+        max_lines=4
+    )
+
     timer = gr.Timer(value=10, active=True)
     timer.tick(
         fn=ui_refresh,
@@ -456,7 +487,6 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator") as demo:
         ]
     )
 
-    # Start the agent when the UI loads
     demo.load(fn=start_agent)
 
 if __name__ == "__main__":
