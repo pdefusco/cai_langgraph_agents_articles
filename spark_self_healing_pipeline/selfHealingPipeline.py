@@ -375,6 +375,10 @@ def ui_refresh(state: dict = None):
     - diff_box
     - remediation_box
     """
+
+    remediation_summary_text = "<div class='status-box-title'>Remediation Summary</div>\nNo remediation info yet."
+    updated_job_text = "<div class='status-box-title'>Updated Job (Remediated) Information</div>\nNo updated job info yet."
+
     import os
 
     # Ensure state is always a dict
@@ -430,14 +434,36 @@ def ui_refresh(state: dict = None):
             llm_analysis = state.get("llm_analysis", "")
             improved_script = state.get("improved_script", "")
             code_diff = state.get("code_diff", "")
-            global LAST_REMEDIATION_INFO
 
-            remediation_summary = LAST_REMEDIATION_INFO.get("summary", "")
+            global LAST_REMEDIATION_INFO
+            if LAST_REMEDIATION_INFO is None:
+                LAST_REMEDIATION_INFO = {}
+            remediation_summary = LAST_REMEDIATION_INFO.get("summary", "No remediation info yet.")
 
             updated_job_info = (
                 f"Job Name: {LAST_REMEDIATION_INFO.get('job_name', '')}\n"
                 f"Resource Name: {LAST_REMEDIATION_INFO.get('resource_name', '')}\n"
                 f"Application File: {APPLICATION_FILE_NAME}"
+            )
+
+            # Step 1: Format the top three boxes with Markdown and titles
+            status_text = (
+                "<div class='status-box-title'>Original Job Status</div>\n"
+                f"**Job Name:** {JOB_NAME}  \n"
+                f"**Latest Run ID:** {latest_run_id}  \n"
+                f"**Status:** {latest_run_status}  \n\n"
+                f"[Jobs API URL]({JOBS_API_URL})  \n"
+                f"**Application File:** {APPLICATION_FILE_NAME}"
+            )
+
+            remediation_summary_text = (
+                "<div class='status-box-title'>Remediation Summary</div>\n"
+                f"{remediation_summary}"
+            )
+
+            updated_job_text = (
+                "<div class='status-box-title'>Updated Job (Remediated) Information</div>\n"
+                f"{updated_job_info}"
             )
         except Exception as e:
             llm_analysis = f"LLM analysis failed: {e}"
@@ -446,16 +472,15 @@ def ui_refresh(state: dict = None):
         latest_run_status = "No runs found for job: " + os.environ.get("JOB_NAME", "<unset>")
 
     return (
-        status_text,          # Original job status
-        remediation_summary,  # Remediation summary
-        updated_job_info,     # Updated job info
-        spark_script,         # Original spark script
-        spark_logs,           # Driver stdout logs
-        llm_analysis,         # LLM analysis (root cause & explanation)
-        improved_script,      # Improved Spark script
-        code_diff             # Code diff (original vs fixed)
+        status_text,              # Markdown for original job
+        remediation_summary_text, # Markdown for remediation summary
+        updated_job_text,         # Markdown for updated job info
+        spark_script,             # Original Spark script (Code)
+        spark_logs,               # Driver stdout logs (Textbox)
+        llm_analysis,             # LLM analysis (Textbox)
+        improved_script,          # Improved Spark script (Code)
+        code_diff                 # Code diff (Textbox)
     )
-
 
 
 # =========================================================
@@ -491,8 +516,14 @@ CUSTOM_CSS = """
     background-color: #f9f9f9;
     font-family: monospace;
     white-space: pre-wrap;
+    margin-bottom: 10px;
 }
 
+.status-box-title {
+    font-weight: bold;
+    font-size: 16px;
+    margin-bottom: 6px;
+}
 """
 
 
@@ -506,22 +537,17 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator", css=CUSTOM_CSS) 
     with gr.Row():
         with gr.Column():
             status_box = gr.Markdown(
-                label="Original Job Status",
                 elem_classes=["status-box"]
             )
 
         with gr.Column():
             remediation_box = gr.Textbox(
-                label="Remediation Summary",
-                lines=6,
-                interactive=False
+                elem_classes=["status-box"]
             )
 
         with gr.Column():
             updated_job_box = gr.Textbox(
-                label="Updated Job (Remediated) Information",
-                lines=6,
-                interactive=False
+                elem_classes=["status-box"]
             )
 
     # ===== REMAINING BOXES (vertical) =====
