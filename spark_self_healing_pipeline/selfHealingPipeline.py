@@ -392,20 +392,17 @@ def ui_refresh(state: dict = None):
         except Exception as e:
             llm_analysis = f"Failed to fetch logs or script: {e}"
 
-    # Top boxes
     status_text = (
-        f"<div class='status-box-title'>Original Job Status</div>"
-        f"**Job Name:** {JOB_NAME}<br>"
-        f"**Latest Run ID:** {latest_run_id or 'N/A'}<br>"
-        f"**Status:** {latest_run_status}<br>"
-        f"[Jobs API URL]({JOBS_API_URL})<br>"
+        f"**Job Name:** {JOB_NAME}\n"
+        f"**Latest Run ID:** {latest_run_id or 'N/A'}\n"
+        f"**Status:** {latest_run_status}\n"
+        f"[Jobs API URL]({JOBS_API_URL})\n"
         f"**Application File:** {APPLICATION_FILE_NAME}"
     )
     remediation_summary_text = LAST_REMEDIATION_INFO.get("summary", "No remediation info yet.")
     updated_job_text = (
-        f"<div class='status-box-title'>Updated Job (Remediated) Information</div>"
-        f"**Job Name:** {LAST_REMEDIATION_INFO.get('job_name', 'N/A')}<br>"
-        f"**Resource Name:** {LAST_REMEDIATION_INFO.get('resource_name', 'N/A')}<br>"
+        f"**Job Name:** {LAST_REMEDIATION_INFO.get('job_name', 'N/A')}\n"
+        f"**Resource Name:** {LAST_REMEDIATION_INFO.get('resource_name', 'N/A')}\n"
         f"**Application File:** {APPLICATION_FILE_NAME}"
     )
 
@@ -471,15 +468,15 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto Remediator", css=css) as demo
     with gr.Row():
         status_box = gr.Markdown(
             label="Original Job Status",
-            elem_classes=["status-box"]
+            # elem_classes=["status-box"]  # REMOVE this
         )
         remediation_summary_box = gr.Markdown(
             label="Remediation Summary",
-            elem_classes=["status-box"]
+            # elem_classes=["status-box"]  # REMOVE this
         )
         updated_job_box = gr.Markdown(
             label="Updated Job (Remediated) Information",
-            elem_classes=["status-box"]
+            # elem_classes=["status-box"]  # REMOVE this
         )
 
     # Second row: code, logs, analysis
