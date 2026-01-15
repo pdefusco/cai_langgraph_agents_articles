@@ -476,12 +476,23 @@ CUSTOM_CSS = """
     padding: 8px;
     border-radius: 4px;
 }
+
+.page-title {
+    text-align: center;
+    font-size: 28px;
+    font-weight: bold;
+    margin-bottom: 20px;
+}
 """
 
 
 with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator", css=CUSTOM_CSS) as demo:
 
-    # ===== TOP ROW =====
+    gr.Markdown(
+        "## CDE Spark Job Monitor & Auto-Remediator",
+        elem_classes=["page-title"]
+    )
+
     with gr.Row():
         with gr.Column():
             status_box = gr.Textbox(
