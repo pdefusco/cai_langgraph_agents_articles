@@ -387,11 +387,11 @@ def ui_refresh(state: dict = None):
     latest_run_status = state.get("latest_run_status", "UNKNOWN")
 
     status_text = (
-        f"Job Name: {JOB_NAME}\n"
-        f"Latest Run ID: {latest_run_id}\n"
-        f"Status: {latest_run_status}\n\n"
-        f"[Jobs API URL]({JOBS_API_URL})\n"
-        f"Application File: {APPLICATION_FILE_NAME}"
+        f"**Job Name:** {JOB_NAME}  \n"
+        f"**Latest Run ID:** {latest_run_id}  \n"
+        f"**Status:** {latest_run_status}  \n\n"
+        f"[Jobs API URL]({JOBS_API_URL})  \n"
+        f"**Application File:** {APPLICATION_FILE_NAME}"
     )
 
     # Initialize outputs
@@ -483,6 +483,16 @@ CUSTOM_CSS = """
     font-weight: bold;
     margin-bottom: 20px;
 }
+
+.status-box {
+    border: 1px solid #ccc;
+    padding: 10px;
+    border-radius: 5px;
+    background-color: #f9f9f9;
+    font-family: monospace;
+    white-space: pre-wrap;
+}
+
 """
 
 
@@ -495,10 +505,9 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator", css=CUSTOM_CSS) 
 
     with gr.Row():
         with gr.Column():
-            status_box = gr.Textbox(
+            status_box = gr.Markdown(
                 label="Original Job Status",
-                lines=7,
-                interactive=False
+                elem_classes=["status-box"]
             )
 
         with gr.Column():
