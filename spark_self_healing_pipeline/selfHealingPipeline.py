@@ -242,8 +242,8 @@ import tempfile
 import os
 
 def deploy_and_run_fixed_job(state: AgentState):
-    new_resource = f"{RESOURCE_NAME}_fixed"
-    new_job_name = f"{JOB_NAME}_fixed"
+    new_resource = f"{RESOURCE_NAME}-fixed"
+    new_job_name = f"{JOB_NAME}-fixed"
 
     CDE_RESOURCE = cderesource.CdeFilesResource(new_resource)
     cdeFilesResourceDefinition = CDE_RESOURCE.createResourceDefinition()
