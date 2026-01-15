@@ -364,57 +364,37 @@ def agent_loop():
 # =========================================================
 
 def ui_refresh(state: dict = None):
-    """
-    Refresh the UI with the latest CDE Spark job information.
-    Returns outputs for:
-    - status_box
-    - script_box
-    - logs_box
-    - analysis_box
-    - fixed_script_box
-    - diff_box
-    - remediation_box
-    """
-
-    remediation_summary_text = "<div class='status-box-title'>Remediation Summary</div>\nNo remediation info yet."
-    updated_job_text = "<div class='status-box-title'>Updated Job (Remediated) Information</div>\nNo updated job info yet."
-
     import os
+    import json
 
-    # Ensure state is always a dict
+    global LAST_REMEDIATION_INFO
+    LAST_REMEDIATION_INFO = LAST_REMEDIATION_INFO or {}
+
     state = state or {}
 
-    # Step 1: Fetch the latest run for the job named by JOB_NAME
-    state = fetch_latest_run(state)
-
-    latest_run_id = state.get("latest_run_id", "N/A")
-    latest_run_status = state.get("latest_run_status", "UNKNOWN")
-
-    status_text = (
-        f"**Job Name:** {JOB_NAME}  \n"
-        f"**Latest Run ID:** {latest_run_id}  \n"
-        f"**Status:** {latest_run_status}  \n\n"
-        f"[Jobs API URL]({JOBS_API_URL})  \n"
-        f"**Application File:** {APPLICATION_FILE_NAME}"
-    )
-
-    # Initialize outputs
+    # Default values
+    status_text = "<div class='status-box-title'>Original Job Status</div>\nNo job info yet."
+    remediation_summary_text = "<div class='status-box-title'>Remediation Summary</div>\nNo remediation info yet."
+    updated_job_text = "<div class='status-box-title'>Updated Job (Remediated) Information</div>\nNo updated job info yet."
     spark_script = ""
     spark_logs = ""
     llm_analysis = ""
     improved_script = ""
     code_diff = ""
-    remediation_summary = ""
+
+    # Fetch latest run
+    state = fetch_latest_run(state)
+    latest_run_id = state.get("latest_run_id")
+    latest_run_status = state.get("latest_run_status", "UNKNOWN")
 
     if latest_run_id:
-        # Step 2: Download Spark driver stdout logs
+        # Download logs
         try:
-            logs_raw = CDE_MANAGER.downloadJobRunLogs(str(latest_run_id), "driver/stdout") or ""
-            spark_logs = logs_raw
+            spark_logs = CDE_MANAGER.downloadJobRunLogs(str(latest_run_id), "driver/stdout") or ""
         except Exception as e:
             spark_logs = f"Failed to fetch logs: {e}"
 
-        # Step 3: Fetch the original Spark script if available
+        # Download Spark script
         try:
             job_runs_raw = CDE_MANAGER.listJobRuns()
             job_runs = json.loads(job_runs_raw).get("runs", [])
@@ -425,7 +405,7 @@ def ui_refresh(state: dict = None):
         except Exception as e:
             spark_script = f"Failed to fetch script: {e}"
 
-        # Step 4: Run LLM analyze & fix node
+        # LLM analyze & fix
         try:
             state["spark_script"] = spark_script
             state["spark_logs"] = spark_logs
@@ -435,18 +415,15 @@ def ui_refresh(state: dict = None):
             improved_script = state.get("improved_script", "")
             code_diff = state.get("code_diff", "")
 
-            global LAST_REMEDIATION_INFO
-            if LAST_REMEDIATION_INFO is None:
-                LAST_REMEDIATION_INFO = {}
+            # Remediation info
             remediation_summary = LAST_REMEDIATION_INFO.get("summary", "No remediation info yet.")
-
             updated_job_info = (
-                f"Job Name: {LAST_REMEDIATION_INFO.get('job_name', '')}\n"
-                f"Resource Name: {LAST_REMEDIATION_INFO.get('resource_name', '')}\n"
-                f"Application File: {APPLICATION_FILE_NAME}"
+                f"**Job Name:** {LAST_REMEDIATION_INFO.get('job_name', '')}  \n"
+                f"**Resource Name:** {LAST_REMEDIATION_INFO.get('resource_name', '')}  \n"
+                f"**Application File:** {APPLICATION_FILE_NAME}"
             )
 
-            # Step 1: Format the top three boxes with Markdown and titles
+            # Markdown for top three boxes
             status_text = (
                 "<div class='status-box-title'>Original Job Status</div>\n"
                 f"**Job Name:** {JOB_NAME}  \n"
@@ -455,12 +432,10 @@ def ui_refresh(state: dict = None):
                 f"[Jobs API URL]({JOBS_API_URL})  \n"
                 f"**Application File:** {APPLICATION_FILE_NAME}"
             )
-
             remediation_summary_text = (
                 "<div class='status-box-title'>Remediation Summary</div>\n"
                 f"{remediation_summary}"
             )
-
             updated_job_text = (
                 "<div class='status-box-title'>Updated Job (Remediated) Information</div>\n"
                 f"{updated_job_info}"
@@ -468,18 +443,15 @@ def ui_refresh(state: dict = None):
         except Exception as e:
             llm_analysis = f"LLM analysis failed: {e}"
 
-    else:
-        latest_run_status = "No runs found for job: " + os.environ.get("JOB_NAME", "<unset>")
-
     return (
-        status_text,              # Markdown for original job
-        remediation_summary_text, # Markdown for remediation summary
-        updated_job_text,         # Markdown for updated job info
-        spark_script,             # Original Spark script (Code)
-        spark_logs,               # Driver stdout logs (Textbox)
-        llm_analysis,             # LLM analysis (Textbox)
-        improved_script,          # Improved Spark script (Code)
-        code_diff                 # Code diff (Textbox)
+        status_text,
+        remediation_summary_text,
+        updated_job_text,
+        spark_script,
+        spark_logs,
+        llm_analysis,
+        improved_script,
+        code_diff
     )
 
 
@@ -492,101 +464,103 @@ init_cde()
 def start_agent():
     threading.Thread(target=agent_loop, daemon=True).start()
 
-CUSTOM_CSS = """
-.scrollable-code {
-    max-height: 300px;
-    overflow-y: scroll;
-    font-family: monospace;
-    background-color: #f5f5f5;
-    padding: 8px;
-    border-radius: 4px;
-}
-
+css = """
+/* Page title at the top */
 .page-title {
-    text-align: center;
-    font-size: 28px;
+    font-size: 24px;
     font-weight: bold;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
+    text-align: center;
 }
 
-.status-box {
-    border: 1px solid #ccc;
-    padding: 10px;
-    border-radius: 5px;
-    background-color: #f9f9f9;
-    font-family: monospace;
-    white-space: pre-wrap;
-    margin-bottom: 10px;
-}
-
+/* Titles inside status/remediation boxes */
 .status-box-title {
     font-weight: bold;
     font-size: 16px;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
+    color: #333;
+}
+
+/* Boxes themselves */
+.status-box {
+    border: 1px solid #ccc;
+    padding: 8px;
+    border-radius: 5px;
+    background-color: #f9f9f9;
+}
+
+/* Scrollable code for spark scripts */
+.scrollable-code .gr-code {
+    max-height: 300px;
+    overflow-y: auto;
 }
 """
 
 
-with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator", css=CUSTOM_CSS) as demo:
 
-    gr.Markdown(
-        "## CDE Spark Job Monitor & Auto-Remediator",
-        elem_classes=["page-title"]
-    )
+with gr.Blocks(title="CDE Spark Job Monitor & Auto Remediator", css=css) as demo:
 
+    # Page title
+    gr.Markdown("<div class='page-title'>CDE Spark Job Monitor & Auto Remediator</div>")
+
+    # Top row: original job status, remediation summary, updated job info
     with gr.Row():
-        with gr.Column():
-            status_box = gr.Markdown(
-                elem_classes=["status-box"]
-            )
+        status_box = gr.Markdown(
+            label="Original Job Status",
+            elem_classes=["status-box"]
+        )
+        remediation_summary_box = gr.Markdown(
+            label="Remediation Summary",
+            elem_classes=["status-box"]
+        )
+        updated_job_box = gr.Markdown(
+            label="Updated Job (Remediated) Information",
+            elem_classes=["status-box"]
+        )
 
-        with gr.Column():
-            remediation_box = gr.Textbox(
-                elem_classes=["status-box"]
-            )
+    # Second row: code, logs, analysis
+    with gr.Row():
+        script_box = gr.Code(
+            label="Spark Script",
+            language="python",
+            show_label=True,
+            interactive=False,
+            elem_classes=["scrollable-code"]
+        )
+        fixed_script_box = gr.Code(
+            label="Improved Spark Script",
+            language="python",
+            show_label=True,
+            interactive=False,
+            elem_classes=["scrollable-code"]
+        )
 
-        with gr.Column():
-            updated_job_box = gr.Textbox(
-                elem_classes=["status-box"]
-            )
+    # Third row: logs, LLM analysis, code diff
+    with gr.Row():
+        logs_box = gr.Textbox(
+            label="Driver Stdout Logs",
+            lines=15,
+            max_lines=15
+        )
+        analysis_box = gr.Textbox(
+            label="LLM Analysis (Root Cause & Explanation)",
+            lines=10,
+            max_lines=10
+        )
+        diff_box = gr.Textbox(
+            label="Spark Code Diff (Original vs Fixed)",
+            lines=20,
+            max_lines=20
+        )
 
-    # ===== REMAINING BOXES (vertical) =====
-    script_box = gr.Code(
-        label="Spark Script",
-        language="python",
-        elem_classes=["scrollable-code"],
-        interactive=False
-    )
-
-    logs_box = gr.Textbox(
-        label="Driver Stdout Logs",
-        lines=15
-    )
-
-    analysis_box = gr.Textbox(
-        label="LLM Analysis (Root Cause & Explanation)",
-        lines=10
-    )
-
-    fixed_script_box = gr.Code(
-        label="Improved Spark Script",
-        language="python",
-        elem_classes=["scrollable-code"],
-        interactive=False
-    )
-
-    diff_box = gr.Textbox(
-        label="Spark Code Diff (Original vs Fixed)",
-        lines=20
-    )
-
+    # Timer to refresh UI every 10 seconds
     timer = gr.Timer(value=10, active=True)
     timer.tick(
         fn=ui_refresh,
         inputs=[],
         outputs=[
             status_box,
-            remediation_box,
+            remediation_summary_box,
             updated_job_box,
             script_box,
             logs_box,
@@ -597,6 +571,7 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator", css=CUSTOM_CSS) 
     )
 
     demo.load(fn=start_agent)
+
 
 
 if __name__ == "__main__":
