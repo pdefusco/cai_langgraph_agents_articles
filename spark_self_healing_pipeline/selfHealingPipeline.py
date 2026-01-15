@@ -79,6 +79,7 @@ class AgentState(TypedDict):
     improved_script: str | None
     code_diff: str | None
 
+    remediation_summary: str | None
     new_job_name: str | None
     new_resource_name: str | None
 
@@ -278,12 +279,13 @@ def deploy_and_run_fixed_job(state: AgentState):
     CDE_MANAGER.createJob(job_def)
     CDE_MANAGER.runJob(new_job_name)
 
-    # Optional cleanup
-    #os.remove(local_path)
-
+    state["new_job_name"] = new_job_name
+    state["new_resource_name"] = new_resource
     state["remediation_summary"] = (
-        f"Created resource '{new_resource}', "
-        f"job '{new_job_name}', and submitted a new run."
+        f"New job created: {new_job_name}\n"
+        f"New resource created: {new_resource}\n"
+        f"Script uploaded: {APPLICATION_FILE_NAME}\n"
+        f"Job submitted successfully."
     )
 
     return state
@@ -366,8 +368,16 @@ def ui_refresh(state: dict = None):
     # Step 1: Fetch the latest run for the job named by JOB_NAME
     state = fetch_latest_run(state)
 
-    latest_run_id = state.get("latest_run_id")
+    latest_run_id = state.get("latest_run_id", "N/A")
     latest_run_status = state.get("latest_run_status", "UNKNOWN")
+
+    status_text = (
+        f"Job Name: {JOB_NAME}\n"
+        f"Latest Run ID: {latest_run_id}\n"
+        f"Status: {latest_run_status}\n\n"
+        f"Jobs API URL: {JOBS_API_URL}\n"
+        f"Application File: {APPLICATION_FILE_NAME}"
+    )
 
     # Initialize outputs
     spark_script = ""
@@ -405,7 +415,7 @@ def ui_refresh(state: dict = None):
             llm_analysis = state.get("llm_analysis", "")
             improved_script = state.get("improved_script", "")
             code_diff = state.get("code_diff", "")
-            remediation_summary = f"New job/resource created: {state.get('remediation', '')}"
+            remediation_summary = state.get("remediation_summary", "")
         except Exception as e:
             llm_analysis = f"LLM analysis failed: {e}"
 
@@ -413,15 +423,15 @@ def ui_refresh(state: dict = None):
         latest_run_status = "No runs found for job: " + os.environ.get("JOB_NAME", "<unset>")
 
     return (
-        latest_run_status,
+        status_text,
         spark_script,
         spark_logs,
         llm_analysis,
         improved_script,
         code_diff,
-        remediation_summary
+        remediation_summary,
+        remediation_summary,  # or a richer formatted version if you want
     )
-
 
 
 # =========================================================
@@ -445,9 +455,10 @@ with gr.Blocks(
         title="CDE Spark Job Monitor & Auto-Remediator",
         css=CUSTOM_CSS
     ) as demo:
-    status_box = gr.Textbox(
-        label="Latest Job Status",
-        lines=2
+    updated_job_box = gr.Textbox(
+        label="Updated Job (Remediated) Information",
+        lines=6,
+        interactive=False
     )
 
     script_box = gr.Code(
@@ -498,6 +509,7 @@ with gr.Blocks(
             fixed_script_box,
             diff_box,
             remediation_box,
+            updated_job_box,   # ✅ new
         ]
     )
 
