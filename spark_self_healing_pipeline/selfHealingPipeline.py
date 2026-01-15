@@ -434,9 +434,10 @@ def start_agent():
     threading.Thread(target=agent_loop, daemon=True).start()
 
 CUSTOM_CSS = """
-.gr-code-container pre {
+.scrollable-code .cm-scroller {
     max-height: 300px;
-    overflow-y: auto;
+    min-height: 300px;
+    font-size: 12px;
 }
 """
 
@@ -452,7 +453,7 @@ with gr.Blocks(
     script_box = gr.Code(
         label="Spark Script",
         language="python",
-        elem_classes=["gr-code-container"]   # ✅ scrollable
+        elem_classes=["scrollable-code"]   # ✅ scrollable
     )
 
     logs_box = gr.Textbox(
@@ -470,7 +471,7 @@ with gr.Blocks(
     fixed_script_box = gr.Code(
         label="Improved Spark Script",
         language="python",
-        elem_classes=["gr-code-container"]  # ✅ scrollable
+        elem_classes=["scrollable-code"]  # ✅ scrollable
     )
 
     diff_box = gr.Textbox(
