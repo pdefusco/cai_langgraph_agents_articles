@@ -433,7 +433,17 @@ init_cde()
 def start_agent():
     threading.Thread(target=agent_loop, daemon=True).start()
 
-with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator") as demo:
+CUSTOM_CSS = """
+.gr-code-container pre {
+    max-height: 300px;
+    overflow-y: auto;
+}
+"""
+
+with gr.Blocks(
+        title="CDE Spark Job Monitor & Auto-Remediator",
+        css=CUSTOM_CSS
+    ) as demo:
     status_box = gr.Textbox(
         label="Latest Job Status",
         lines=2
@@ -442,7 +452,7 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator") as demo:
     script_box = gr.Code(
         label="Spark Script",
         language="python",
-        height=300   # ✅ scrollable
+        elem_classes=["gr-code-container"]   # ✅ scrollable
     )
 
     logs_box = gr.Textbox(
@@ -460,7 +470,7 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator") as demo:
     fixed_script_box = gr.Code(
         label="Improved Spark Script",
         language="python",
-        height=300   # ✅ scrollable
+        elem_classes=["gr-code-container"]  # ✅ scrollable
     )
 
     diff_box = gr.Textbox(
