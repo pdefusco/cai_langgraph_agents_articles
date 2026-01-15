@@ -552,7 +552,7 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto Remediator", css=css) as demo
         )
 
     # Timer to refresh UI every 10 seconds
-    timer = gr.Timer(value=120, active=True)  # refresh every 2 minutes
+    timer = gr.Timer(value=10, active=True)  # refresh every 2 minutes
     timer.tick(
         fn=ui_refresh,
         inputs=[],
