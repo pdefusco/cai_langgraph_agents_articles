@@ -390,7 +390,7 @@ def ui_refresh(state: dict = None):
         f"Job Name: {JOB_NAME}\n"
         f"Latest Run ID: {latest_run_id}\n"
         f"Status: {latest_run_status}\n\n"
-        f"Jobs API URL: {JOBS_API_URL}\n"
+        f"[Jobs API URL]({JOBS_API_URL})\n"
         f"Application File: {APPLICATION_FILE_NAME}"
     )
 
@@ -474,18 +474,32 @@ CUSTOM_CSS = """
 }
 """
 
-with gr.Blocks(
-    title="CDE Spark Job Monitor & Auto-Remediator",
-    css=CUSTOM_CSS
-) as demo:
+with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator") as demo:
 
-    # 🔝 Original job status & context
-    status_box = gr.Textbox(
-        label="Original Job Status",
-        lines=7,
-        interactive=False
-    )
+    # ===== TOP ROW =====
+    with gr.Row():
+        with gr.Column():
+            status_box = gr.Textbox(
+                label="Original Job Status",
+                lines=7,
+                interactive=False
+            )
 
+        with gr.Column():
+            remediation_box = gr.Textbox(
+                label="Remediation Summary",
+                lines=6,
+                interactive=False
+            )
+
+        with gr.Column():
+            updated_job_box = gr.Textbox(
+                label="Updated Job (Remediated) Information",
+                lines=6,
+                interactive=False
+            )
+
+    # ===== REMAINING BOXES (vertical) =====
     script_box = gr.Code(
         label="Spark Script",
         language="python",
@@ -513,35 +527,24 @@ with gr.Blocks(
         lines=20
     )
 
-    remediation_box = gr.Textbox(
-        label="Remediation Summary",
-        lines=4
-    )
-
-    # 🔻 New: Updated job info
-    updated_job_box = gr.Textbox(
-        label="Updated Job (Remediated) Information",
-        lines=6,
-        interactive=False
-    )
-
     timer = gr.Timer(value=10, active=True)
     timer.tick(
         fn=ui_refresh,
         inputs=[],
         outputs=[
             status_box,
+            remediation_box,
+            updated_job_box,
             script_box,
             logs_box,
             analysis_box,
             fixed_script_box,
             diff_box,
-            remediation_box,
-            updated_job_box,
         ]
     )
 
     demo.load(fn=start_agent)
+
 
 
 if __name__ == "__main__":
