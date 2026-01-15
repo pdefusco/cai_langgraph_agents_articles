@@ -364,84 +364,50 @@ def agent_loop():
 # =========================================================
 
 def ui_refresh(state: dict = None):
-    import os
-    import json
-
-    global LAST_REMEDIATION_INFO
-    LAST_REMEDIATION_INFO = LAST_REMEDIATION_INFO or {}
-
     state = state or {}
+    state = fetch_latest_run(state)
+    latest_run_id = state.get("latest_run_id")
+    latest_run_status = state.get("latest_run_status", "UNKNOWN")
 
-    # Default values
-    status_text = "<div class='status-box-title'>Original Job Status</div>\nNo job info yet."
-    remediation_summary_text = "<div class='status-box-title'>Remediation Summary</div>\nNo remediation info yet."
-    updated_job_text = "<div class='status-box-title'>Updated Job (Remediated) Information</div>\nNo updated job info yet."
     spark_script = ""
     spark_logs = ""
     llm_analysis = ""
     improved_script = ""
     code_diff = ""
 
-    state = fetch_latest_run(state)
-    #print("DEBUG: state from fetch_latest_run:", state)
-    latest_run_id = state.get("latest_run_id")
-    #print("DEBUG: latest_run_id:", latest_run_id)
-    latest_run_status = state.get("latest_run_status", "UNKNOWN")
-
     if latest_run_id:
-        #print("DEBUG: Entering latest_run_id block")
-
-        # Download logs
         try:
             spark_logs = CDE_MANAGER.downloadJobRunLogs(str(latest_run_id), "driver/stdout") or ""
-        except Exception as e:
-            spark_logs = f"Failed to fetch logs: {e}"
+            spark_script = CDE_MANAGER.downloadFileFromResource(RESOURCE_NAME, APPLICATION_FILE_NAME) or ""
 
-        try:
-            job_runs_raw = CDE_MANAGER.listJobRuns()
-            #print("DEBUG: job_runs_raw:", job_runs_raw)
-            job_runs = json.loads(job_runs_raw).get("runs", [])
-            #print("DEBUG: job_runs:", job_runs)
-        except Exception as e:
-            print("Failed to list job runs:", e)
-
-        # LLM analyze & fix
-        try:
             state["spark_script"] = spark_script
             state["spark_logs"] = spark_logs
-            state = llm_analyze_and_fix(state)
+
+            if not state.get("retried", False) and latest_run_status == "FAILED":
+                state = llm_analyze_and_fix(state)
 
             llm_analysis = state.get("llm_analysis", "")
             improved_script = state.get("improved_script", "")
             code_diff = state.get("code_diff", "")
-
-            # Remediation info
-            remediation_summary = LAST_REMEDIATION_INFO.get("summary", "No remediation info yet.")
-            updated_job_info = (
-                f"**Job Name:** {LAST_REMEDIATION_INFO.get('job_name', '')}  \n"
-                f"**Resource Name:** {LAST_REMEDIATION_INFO.get('resource_name', '')}  \n"
-                f"**Application File:** {APPLICATION_FILE_NAME}"
-            )
-
-            # Markdown for top three boxes
-            status_text = (
-                "<div class='status-box-title'>Original Job Status</div>\n"
-                f"**Job Name:** {JOB_NAME}  \n"
-                f"**Latest Run ID:** {latest_run_id}  \n"
-                f"**Status:** {latest_run_status}  \n\n"
-                f"[Jobs API URL]({JOBS_API_URL})  \n"
-                f"**Application File:** {APPLICATION_FILE_NAME}"
-            )
-            remediation_summary_text = (
-                "<div class='status-box-title'>Remediation Summary</div>\n"
-                f"{remediation_summary}"
-            )
-            updated_job_text = (
-                "<div class='status-box-title'>Updated Job (Remediated) Information</div>\n"
-                f"{updated_job_info}"
-            )
         except Exception as e:
-            llm_analysis = f"LLM analysis failed: {e}"
+            llm_analysis = f"Failed to fetch logs or script: {e}"
+
+    # Top boxes
+    status_text = (
+        f"<div class='status-box-title'>Original Job Status</div>"
+        f"**Job Name:** {JOB_NAME}<br>"
+        f"**Latest Run ID:** {latest_run_id or 'N/A'}<br>"
+        f"**Status:** {latest_run_status}<br>"
+        f"[Jobs API URL]({JOBS_API_URL})<br>"
+        f"**Application File:** {APPLICATION_FILE_NAME}"
+    )
+    remediation_summary_text = LAST_REMEDIATION_INFO.get("summary", "No remediation info yet.")
+    updated_job_text = (
+        f"<div class='status-box-title'>Updated Job (Remediated) Information</div>"
+        f"**Job Name:** {LAST_REMEDIATION_INFO.get('job_name', 'N/A')}<br>"
+        f"**Resource Name:** {LAST_REMEDIATION_INFO.get('resource_name', 'N/A')}<br>"
+        f"**Application File:** {APPLICATION_FILE_NAME}"
+    )
 
     return (
         status_text,
