@@ -446,15 +446,16 @@ def ui_refresh(state: dict = None):
         latest_run_status = "No runs found for job: " + os.environ.get("JOB_NAME", "<unset>")
 
     return (
-        status_text,
-        spark_script,
-        spark_logs,
-        llm_analysis,
-        improved_script,
-        code_diff,
-        remediation_summary,
-        remediation_summary,  # or a richer formatted version if you want
+        status_text,          # Original job status
+        remediation_summary,  # Remediation summary
+        updated_job_info,     # Updated job info
+        spark_script,         # Original spark script
+        spark_logs,           # Driver stdout logs
+        llm_analysis,         # LLM analysis (root cause & explanation)
+        improved_script,      # Improved Spark script
+        code_diff             # Code diff (original vs fixed)
     )
+
 
 
 # =========================================================
@@ -539,12 +540,11 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto-Remediator") as demo:
             logs_box,
             analysis_box,
             fixed_script_box,
-            diff_box,
+            diff_box
         ]
     )
 
     demo.load(fn=start_agent)
-
 
 
 if __name__ == "__main__":
