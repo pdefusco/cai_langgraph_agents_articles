@@ -484,20 +484,22 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto Remediator", css=css) as demo
 
     # Second row: code, logs, analysis
     with gr.Row():
-        script_box = gr.Code(
-            label="Spark Script",
-            language="python",
-            show_label=True,
-            interactive=False,
-            elem_classes=["scrollable-code"]
-        )
-        fixed_script_box = gr.Code(
-            label="Improved Spark Script",
-            language="python",
-            show_label=True,
-            interactive=False,
-            elem_classes=["scrollable-code"]
-        )
+        with gr.Column():
+            script_box = gr.Code(
+                label="Spark Script",
+                language="python",
+                show_label=True,
+                interactive=False,
+                elem_classes=["scrollable-code"]
+            )
+        with gr.Column():
+            fixed_script_box = gr.Code(
+                label="Improved Spark Script",
+                language="python",
+                show_label=True,
+                interactive=False,
+                elem_classes=["scrollable-code"]
+            )
 
     # Third row: logs, LLM analysis, code diff
     with gr.Row():
