@@ -389,7 +389,7 @@ def ui_refresh(state: dict = None):
     latest_run_status = state.get("latest_run_status", "UNKNOWN")
 
     if latest_run_id:
-        print("DEBUG: Entering latest_run_id block")
+        #print("DEBUG: Entering latest_run_id block")
 
         # Download logs
         try:
@@ -399,9 +399,9 @@ def ui_refresh(state: dict = None):
 
         try:
             job_runs_raw = CDE_MANAGER.listJobRuns()
-            print("DEBUG: job_runs_raw:", job_runs_raw)
+            #print("DEBUG: job_runs_raw:", job_runs_raw)
             job_runs = json.loads(job_runs_raw).get("runs", [])
-            print("DEBUG: job_runs:", job_runs)
+            #print("DEBUG: job_runs:", job_runs)
         except Exception as e:
             print("Failed to list job runs:", e)
 
