@@ -382,28 +382,28 @@ def ui_refresh(state: dict = None):
     improved_script = ""
     code_diff = ""
 
-    # Fetch latest run
     state = fetch_latest_run(state)
+    print("DEBUG: state from fetch_latest_run:", state)
     latest_run_id = state.get("latest_run_id")
+    print("DEBUG: latest_run_id:", latest_run_id)
     latest_run_status = state.get("latest_run_status", "UNKNOWN")
 
     if latest_run_id:
+        print("DEBUG: Entering latest_run_id block")
+
         # Download logs
         try:
             spark_logs = CDE_MANAGER.downloadJobRunLogs(str(latest_run_id), "driver/stdout") or ""
         except Exception as e:
             spark_logs = f"Failed to fetch logs: {e}"
 
-        # Download Spark script
         try:
             job_runs_raw = CDE_MANAGER.listJobRuns()
+            print("DEBUG: job_runs_raw:", job_runs_raw)
             job_runs = json.loads(job_runs_raw).get("runs", [])
-            for run in job_runs:
-                if str(run.get("id")) == str(latest_run_id):
-                    spark_script = CDE_MANAGER.downloadFileFromResource(RESOURCE_NAME, APPLICATION_FILE_NAME)
-                    break
+            print("DEBUG: job_runs:", job_runs)
         except Exception as e:
-            spark_script = f"Failed to fetch script: {e}"
+            print("Failed to list job runs:", e)
 
         # LLM analyze & fix
         try:
