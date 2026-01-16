@@ -283,11 +283,32 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
 
         return decoded
 
+import time
+import json
+
+def wait_for_resource_ready(resource_name: str, timeout=120, poll_interval=5):
+    """
+    Poll CDE until the Files Resource is usable.
+    """
+    start = time.time()
+
+    while time.time() - start < timeout:
+        try:
+            # List files to confirm backend is ready
+            files = CDE_MANAGER.listFilesInResource(resource_name)
+            if files != -1:
+                return True
+        except Exception:
+            pass
+
+        time.sleep(poll_interval)
+
+    raise TimeoutError(f"CDE resource '{resource_name}' not ready after {timeout}s")
+
 
 def create_resource_once(state: AgentState) -> AgentState:
     """
-    Ensure the CDE Files Resource exists.
-    Idempotent: 409 (already exists) is treated as success.
+    Ensure the CDE Files Resource exists AND is ready.
     """
 
     if state.get("resource_created"):
@@ -302,14 +323,16 @@ def create_resource_once(state: AgentState) -> AgentState:
 
     except Exception as e:
         msg = str(e)
-
-        # ---- CRITICAL: Treat 409 as success ----
         if "already exists" in msg or "409" in msg:
             state["resource_status"] = "already_exists"
             print(f"[CDE] Resource '{RESOURCE_NAME}' already exists — continuing")
         else:
-            # Real failure → stop graph
             raise RuntimeError(f"Failed to create resource '{RESOURCE_NAME}': {e}")
+
+    # 🔴 THIS IS THE MISSING PIECE
+    print("[CDE] Waiting for resource to become ready...")
+    wait_for_resource_ready(RESOURCE_NAME)
+    print("[CDE] Resource is ready")
 
     state["resource_created"] = True
     return state
