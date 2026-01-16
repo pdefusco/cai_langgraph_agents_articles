@@ -297,7 +297,7 @@ def wait_for_resource_ready(resource_name: str, timeout=120, poll_interval=5):
 
     while time.time() - start < timeout:
         try:
-            files = CDE_MANAGER.listFilesInResource(resource_name)
+            files = CDE_MANAGER.describeResource(resource_name)
             logger.debug(f"[CDE] listFilesInResource returned: {files}")
             if files != -1 and isinstance(files, list):
                 logger.info(f"[CDE] Resource '{resource_name}' is ready with {len(files)} files")
