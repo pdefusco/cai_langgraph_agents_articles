@@ -182,6 +182,7 @@ spark.stop()
 # LANGGRAPH NODES
 # =========================================================
 import base64
+import re
 
 def llm_generate_scripts(state: AgentState) -> AgentState:
     """
@@ -192,48 +193,48 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
     spark_template = SPARK_APP_TEMPLATE
 
     prompt = [
-    SystemMessage(
-        content=(
-            "You are a senior Spark + Iceberg engineer.\n\n"
-            "You are given a REAL production-grade PySpark application.\n\n"
-            "Your task:\n"
-            "Create EXACTLY 5 VARIANTS of this application.\n\n"
-            "Rules (VERY IMPORTANT):\n"
-            "- You MUST start from the provided code\n"
-            "- You MUST preserve overall structure\n"
-            "- You MAY ONLY modify Spark / Iceberg logic\n"
-            "- NO artificial Python errors\n"
-            "- NO 'raise Exception'\n"
-            "- NO nonsense lines of code\n"
-            "- **DO NOT INCLUDE COMMENTS OR DOCSTRINGS**\n"
-            "- **USE ONLY ASCII CHARACTERS**\n"
-            "- **MINIMIZE NEWLINES AND BLANK LINES**\n\n"
-            "Each variant MUST FAIL for a DIFFERENT REASON:\n"
-            "1. Spark SQL / Catalyst analysis failure\n"
-            "2. Iceberg schema mismatch during write or merge\n"
-            "3. Runtime failure caused by extreme skew or repartitioning\n"
-            "4. Ambiguous or invalid column resolution in MERGE\n"
-            "5. Invalid MERGE semantics (UPDATE/INSERT contract violation)\n\n"
-            "Return STRICT JSON ONLY in this format:\n"
-            "{\n"
-            "  \"scripts\": [\n"
-            "    {\n"
-            "      \"name\": \"string\",\n"
-            "      \"description\": \"why this fails\",\n"
-            "      \"code\": \"full modified pyspark script without comments or special characters\"\n"
-            "    }\n"
-            "  ]\n"
-            "}\n\n"
-            "DO NOT include markdown.\n"
-            "DO NOT include backticks.\n"
-            "DO NOT explain outside JSON.\n\n"
-            "Here is the BASE APPLICATION:\n\n"
-            f"{spark_template}"
+        SystemMessage(
+            content=(
+                "You are a senior Spark + Iceberg engineer.\n\n"
+                "You are given a REAL production-grade PySpark application.\n\n"
+                "Your task:\n"
+                "Create EXACTLY 5 VARIANTS of this application.\n\n"
+                "Rules (VERY IMPORTANT):\n"
+                "- You MUST start from the provided code\n"
+                "- You MUST preserve overall structure\n"
+                "- You MAY ONLY modify Spark / Iceberg logic\n"
+                "- NO artificial Python errors\n"
+                "- NO 'raise Exception'\n"
+                "- NO nonsense lines of code\n"
+                "- **DO NOT INCLUDE COMMENTS OR DOCSTRINGS**\n"
+                "- **USE ONLY ASCII CHARACTERS**\n"
+                "- **MINIMIZE NEWLINES AND BLANK LINES**\n\n"
+                "Each variant MUST FAIL for a DIFFERENT REASON:\n"
+                "1. Spark SQL / Catalyst analysis failure\n"
+                "2. Iceberg schema mismatch during write or merge\n"
+                "3. Runtime failure caused by extreme skew or repartitioning\n"
+                "4. Ambiguous or invalid column resolution in MERGE\n"
+                "5. Invalid MERGE semantics (UPDATE/INSERT contract violation)\n\n"
+                "Return STRICT JSON ONLY in this format:\n"
+                "{\n"
+                "  \"scripts\": [\n"
+                "    {\n"
+                "      \"name\": \"string\",\n"
+                "      \"description\": \"why this fails\",\n"
+                "      \"code_b64\": \"full modified PySpark script, base64-encoded\"\n"
+                "    }\n"
+                "  ]\n"
+                "}\n\n"
+                "DO NOT include markdown.\n"
+                "DO NOT include backticks.\n"
+                "DO NOT explain outside JSON.\n\n"
+                "Here is the BASE APPLICATION:\n\n"
+                f"{SPARK_APP_TEMPLATE}"
             )
         )
     ]
 
-
+    # Call the LLM
     response = llm.invoke(prompt)
 
     # ---- Parse JSON safely ----
@@ -242,7 +243,28 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
     if "scripts" not in payload or len(payload["scripts"]) != 5:
         raise RuntimeError("LLM did not return exactly 5 Spark scripts")
 
+    # ---- Decode Base64 scripts ----
+    for script in payload["scripts"]:
+        encoded = script.get("code_b64")
+        if not encoded:
+            raise RuntimeError(f"Script {script.get('name')} missing 'code_b64' field")
+
+        # Clean whitespace / fix missing padding
+        encoded = re.sub(r"\s+", "", encoded)
+        missing_padding = len(encoded) % 4
+        if missing_padding:
+            encoded += "=" * (4 - missing_padding)
+
+        try:
+            decoded = base64.b64decode(encoded).decode("utf-8")
+        except Exception as e:
+            raise RuntimeError(f"Failed to decode Base64 for script {script.get('name')}: {e}")
+
+        script["code"] = decoded  # Replace code_b64 with decoded code
+
+    state["scripts"] = payload["scripts"]
     return state
+
 
 import time
 import json
