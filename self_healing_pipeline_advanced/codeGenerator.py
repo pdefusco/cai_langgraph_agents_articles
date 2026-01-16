@@ -242,43 +242,7 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
     if "scripts" not in payload or len(payload["scripts"]) != 5:
         raise RuntimeError("LLM did not return exactly 5 Spark scripts")
 
-    import base64
-    import re
-
-    def validate_and_decode(original: str, encoded: str) -> str:
-        # ---- Normalize Base64 (CRITICAL FIX) ----
-        encoded = re.sub(r"\s+", "", encoded)  # remove newlines/spaces
-
-        # Restore missing padding if needed
-        missing_padding = len(encoded) % 4
-        if missing_padding:
-            encoded += "=" * (4 - missing_padding)
-
-        try:
-            decoded = base64.b64decode(encoded).decode("utf-8")
-        except Exception as e:
-            raise RuntimeError(f"Base64 decode failed: {e}")
-
-        # ---- Structural validation ----
-        required_markers = [
-            "BEGIN SPARK TEMPLATE",
-            "END SPARK TEMPLATE",
-            "DataGenerator",
-            "MERGE INTO",
-            "spark.stop()",
-        ]
-
-        for marker in required_markers:
-            if marker not in decoded:
-                raise RuntimeError(f"Missing required marker: {marker}")
-
-        orig_lines = [l for l in original.splitlines() if l.strip()]
-        gen_lines = [l for l in decoded.splitlines() if l.strip()]
-
-        if len(gen_lines) < 0.9 * len(orig_lines):
-            raise RuntimeError("Generated script was abbreviated")
-
-        return decoded
+    return state
 
 import time
 import json
