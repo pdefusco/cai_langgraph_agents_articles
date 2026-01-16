@@ -245,9 +245,24 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
     if "scripts" not in payload or len(payload["scripts"]) != 5:
         raise RuntimeError("LLM did not return exactly 5 Spark scripts")
 
-    def validate_and_decode(original: str, encoded: str) -> str:
-        decoded = base64.b64decode(encoded).decode("utf-8")
+    import base64
+    import re
 
+    def validate_and_decode(original: str, encoded: str) -> str:
+        # ---- Normalize Base64 (CRITICAL FIX) ----
+        encoded = re.sub(r"\s+", "", encoded)  # remove newlines/spaces
+
+        # Restore missing padding if needed
+        missing_padding = len(encoded) % 4
+        if missing_padding:
+            encoded += "=" * (4 - missing_padding)
+
+        try:
+            decoded = base64.b64decode(encoded).decode("utf-8")
+        except Exception as e:
+            raise RuntimeError(f"Base64 decode failed: {e}")
+
+        # ---- Structural validation ----
         required_markers = [
             "BEGIN SPARK TEMPLATE",
             "END SPARK TEMPLATE",
@@ -267,25 +282,7 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
             raise RuntimeError("Generated script was abbreviated")
 
         return decoded
-
-    # ---- Decode + validate ----
-    validated_scripts = []
-
-    for script in payload["scripts"]:
-        full_code = validate_and_decode(
-            SPARK_APP_TEMPLATE,
-            script["code_base64"],
-        )
-
-        validated_scripts.append({
-            "name": script["name"],
-            "description": script["description"],
-            "code": full_code,
-        })
-
-    state["scripts"] = validated_scripts
-    return state
-
+        
 
 def create_resource_once(state: AgentState) -> AgentState:
     """
