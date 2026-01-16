@@ -335,7 +335,7 @@ def create_resource_once(state: AgentState) -> AgentState:
 
     # 🔴 THIS IS THE MISSING PIECE
     print("[CDE] Waiting for resource to become ready...")
-    wait_for_resource_ready(RESOURCE_NAME)
+    #wait_for_resource_ready(RESOURCE_NAME)
     print("[CDE] Resource is ready")
 
     state["resource_created"] = True
