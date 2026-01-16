@@ -48,6 +48,21 @@ CDE_CONNECTION.setToken()
 CDE_MANAGER = cdemanager.CdeClusterManager(CDE_CONNECTION)
 
 # =========================================================
+# LOGGING
+# =========================================================
+
+import logging
+
+# Basic logging configuration
+logging.basicConfig(
+    level=logging.DEBUG,  # or INFO if you want less verbose output
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
+
+logger = logging.getLogger(__name__)
+
+
+# =========================================================
 # UI CACHE (STATIC)
 # =========================================================
 
