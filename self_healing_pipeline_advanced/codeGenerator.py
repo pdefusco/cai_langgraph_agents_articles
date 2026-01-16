@@ -282,17 +282,34 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
             raise RuntimeError("Generated script was abbreviated")
 
         return decoded
-        
+
 
 def create_resource_once(state: AgentState) -> AgentState:
     """
-    Create the CDE Files Resource exactly once.
+    Ensure the CDE Files Resource exists.
+    Idempotent: 409 (already exists) is treated as success.
     """
+
     if state.get("resource_created"):
         return state
 
     resource = cderesource.CdeFilesResource(RESOURCE_NAME)
-    CDE_MANAGER.createResource(resource.createResourceDefinition())
+
+    try:
+        CDE_MANAGER.createResource(resource.createResourceDefinition())
+        state["resource_status"] = "created"
+        print(f"[CDE] Resource '{RESOURCE_NAME}' created")
+
+    except Exception as e:
+        msg = str(e)
+
+        # ---- CRITICAL: Treat 409 as success ----
+        if "already exists" in msg or "409" in msg:
+            state["resource_status"] = "already_exists"
+            print(f"[CDE] Resource '{RESOURCE_NAME}' already exists — continuing")
+        else:
+            # Real failure → stop graph
+            raise RuntimeError(f"Failed to create resource '{RESOURCE_NAME}': {e}")
 
     state["resource_created"] = True
     return state
