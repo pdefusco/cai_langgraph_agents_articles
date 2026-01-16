@@ -192,50 +192,47 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
     spark_template = SPARK_APP_TEMPLATE
 
     prompt = [
-        SystemMessage(
-            content=(
-                "You are a senior Spark + Iceberg engineer.\n\n"
-                "You are given a COMPLETE production PySpark application.\n"
-                "Treat it as IMMUTABLE SOURCE CODE.\n\n"
-
-                "TASK:\n"
-                "Create EXACTLY 5 VARIANTS of this application.\n\n"
-
-                "ABSOLUTE RULES:\n"
-                "- You MUST return the ENTIRE script for each variant\n"
-                "- You MUST NOT remove or summarize any code\n"
-                "- You MUST keep BEGIN/END template markers\n"
-                "- You MAY ONLY modify Spark / Iceberg logic\n"
-                "- NO artificial Python errors\n\n"
-
-                "FAILURE TYPES (use each once):\n"
-                "1. Spark SQL / Catalyst analysis failure\n"
-                "2. Iceberg schema mismatch during write or MERGE\n"
-                "3. Runtime failure from extreme skew or repartitioning\n"
-                "4. Ambiguous or invalid column resolution in MERGE\n"
-                "5. Invalid MERGE semantics\n\n"
-
-                "OUTPUT FORMAT (STRICT JSON ONLY):\n\n"
-                "{\n"
-                "  \"scripts\": [\n"
-                "    {\n"
-                "      \"name\": \"string\",\n"
-                "      \"description\": \"why this Spark job fails\",\n"
-                "      \"code_base64\": \"BASE64 ENCODED FULL SCRIPT\"\n"
-                "    }\n"
-                "  ]\n"
-                "}\n\n"
-
-                "IMPORTANT:\n"
-                "- Encode the FULL SCRIPT using base64\n"
-                "- Do NOT return raw code\n"
-                "- Do NOT include markdown or explanations\n\n"
-
-                "BASE APPLICATION:\n\n"
-                f"{spark_template}"
+    SystemMessage(
+        content=(
+            "You are a senior Spark + Iceberg engineer.\n\n"
+            "You are given a REAL production-grade PySpark application.\n\n"
+            "Your task:\n"
+            "Create EXACTLY 5 VARIANTS of this application.\n\n"
+            "Rules (VERY IMPORTANT):\n"
+            "- You MUST start from the provided code\n"
+            "- You MUST preserve overall structure\n"
+            "- You MAY ONLY modify Spark / Iceberg logic\n"
+            "- NO artificial Python errors\n"
+            "- NO 'raise Exception'\n"
+            "- NO nonsense lines of code\n"
+            "- **DO NOT INCLUDE COMMENTS OR DOCSTRINGS**\n"
+            "- **USE ONLY ASCII CHARACTERS**\n"
+            "- **MINIMIZE NEWLINES AND BLANK LINES**\n\n"
+            "Each variant MUST FAIL for a DIFFERENT REASON:\n"
+            "1. Spark SQL / Catalyst analysis failure\n"
+            "2. Iceberg schema mismatch during write or merge\n"
+            "3. Runtime failure caused by extreme skew or repartitioning\n"
+            "4. Ambiguous or invalid column resolution in MERGE\n"
+            "5. Invalid MERGE semantics (UPDATE/INSERT contract violation)\n\n"
+            "Return STRICT JSON ONLY in this format:\n"
+            "{\n"
+            "  \"scripts\": [\n"
+            "    {\n"
+            "      \"name\": \"string\",\n"
+            "      \"description\": \"why this fails\",\n"
+            "      \"code\": \"full modified pyspark script without comments or special characters\"\n"
+            "    }\n"
+            "  ]\n"
+            "}\n\n"
+            "DO NOT include markdown.\n"
+            "DO NOT include backticks.\n"
+            "DO NOT explain outside JSON.\n\n"
+            "Here is the BASE APPLICATION:\n\n"
+            f"{spark_template}"
             )
         )
     ]
+
 
     response = llm.invoke(prompt)
 
@@ -286,7 +283,7 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
 import time
 import json
 
-def wait_for_resource_ready(resource_name: str, timeout=120, poll_interval=5):
+def wait_for_resource_ready(resource_name: str, timeout=10, poll_interval=5):
     """
     Poll CDE until the Files Resource is usable.
     """
