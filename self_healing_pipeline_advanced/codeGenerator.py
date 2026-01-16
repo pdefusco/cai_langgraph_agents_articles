@@ -303,15 +303,17 @@ def wait_for_resource_ready(resource_name: str, timeout=120, poll_interval=5):
     Poll CDE until the Files Resource is usable.
     """
     start = time.time()
+    logger.info(f"[CDE] Waiting for resource '{resource_name}' to become ready (timeout={timeout}s)")
 
     while time.time() - start < timeout:
         try:
-            # List files to confirm backend is ready
             files = CDE_MANAGER.listFilesInResource(resource_name)
-            if files != -1:
+            logger.debug(f"[CDE] listFilesInResource returned: {files}")
+            if files != -1 and isinstance(files, list):
+                logger.info(f"[CDE] Resource '{resource_name}' is ready with {len(files)} files")
                 return True
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[CDE] listFilesInResource failed: {e}")
 
         time.sleep(poll_interval)
 
