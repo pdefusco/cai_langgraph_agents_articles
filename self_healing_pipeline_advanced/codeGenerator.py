@@ -80,7 +80,10 @@ llm = ChatOpenAI(
 # LLM
 # =========================================================
 
-SPARK_APP_TEMPLATE = '''from pyspark.sql import SparkSession
+SPARK_APP_TEMPLATE = '''
+# === BEGIN SPARK TEMPLATE (DO NOT REMOVE OR ABBREVIATE) ===
+
+from pyspark.sql import SparkSession
 from pyspark.sql.functions import expr
 import sys
 import random
@@ -92,28 +95,23 @@ from datetime import date
 targetTable = sys.argv[1]
 sourceTable = sys.argv[2]
 
-# Get the current date
 today = date.today()
 
 spark = SparkSession.builder \
     .appName(f"IcebergDynamicMultiKeySkew_{today}") \
     .getOrCreate()
 
-# Fixed row count for dev/testing
 row_count = int(np.random.normal(loc=50_000_000, scale=50_000_000))
-row_count = max(row_count, 10_000_000)  # Ensure minimum size
+row_count = max(row_count, 10_000_000)
 print(f"Generating {row_count:,} rows")
 
-# Skew and overlap config
 def create_skew_ids(num_keys=10):
     ids = random.sample(range(10_000_000, 5_000_000_000), num_keys)
     weights = np.random.dirichlet(np.ones(num_keys), size=1)[0]
     return ids, weights
 
-# Generate skewed id set
 skewed_ids, skew_weights = create_skew_ids(num_keys=10)
 
-# Choose overlap fraction
 overlap_fraction = random.uniform(0.1, 0.9)
 overlap_count = int(len(skewed_ids) * overlap_fraction)
 overlap_ids = skewed_ids[:overlap_count]
@@ -121,13 +119,8 @@ new_ids = [i + 10_000_000_000 for i in skewed_ids[overlap_count:]]
 df2_ids = overlap_ids + new_ids
 df2_weights = np.random.dirichlet(np.ones(len(df2_ids)), size=1)[0]
 
-print(f"Overlap fraction: {overlap_fraction:.2%}")
-print(f"df1 will use {len(skewed_ids)} skewed IDs")
-print(f"df2 will reuse {len(overlap_ids)} (overlapping) and {len(new_ids)} (new) IDs")
-
 num_partitions = max(row_count // 1_000_000, 4)
 
-# ---- Create df2 ----
 df2_spec = (
     DataGenerator(spark, name="df2_gen", rows=row_count, partitions=num_partitions, seedColumnName="_seed_id")
     .withColumn("id", "long", values=df2_ids, weights=df2_weights)
@@ -143,14 +136,11 @@ df2_spec = (
     .withColumn("event_ts", "timestamp", begin="2020-01-01 01:00:00", interval="1 day", random=True)
 )
 
-df2 = df2_spec.build()
-df2 = df2.drop("_seed_id")
-# ---- Create df1 (only if table doesn't exist) ----
+df2 = df2_spec.build().drop("_seed_id")
+
 table_exists = spark._jsparkSession.catalog().tableExists(targetTable)
 
 if not table_exists:
-    print(f"Creating target table {targetTable}")
-
     df1_spec = (
         DataGenerator(spark, name="df1_gen", rows=row_count, partitions=num_partitions, seedColumnName="_seed_id")
         .withColumn("id", "long", values=skewed_ids, weights=skew_weights)
@@ -166,37 +156,25 @@ if not table_exists:
         .withColumn("event_ts", "timestamp", begin="2020-01-01 01:00:00", interval="1 day", random=True)
     )
 
-    df1 = df1_spec.build()
-    df1 = df1.drop("_seed_id")
+    df1 = df1_spec.build().drop("_seed_id")
     df1.writeTo(targetTable).using("iceberg").create()
-else:
-    print(f"Target table {targetTable} exists. Skipping creation.")
 
-# ---- Write staging table and merge ----
 spark.sql(f"DROP TABLE IF EXISTS {sourceTable} PURGE")
 df2.writeTo(sourceTable).using("iceberg").create()
 
-# 99.99% chance to use a bogus column name
-if random.random() < 0.9999:
-    source_ts_col = "source.fake_event_ts"
-    target_ts_col = "target.fake_event_ts"
-else:
-    source_ts_col = "source.event_ts"
-    target_ts_col = "target.event_ts"
-
-spark.sql(f"""
+spark.sql(f\"\"\"
     MERGE INTO {targetTable} AS target
     USING {sourceTable} AS source
     ON target.id = source.id
-    WHEN MATCHED AND {source_ts_col} > {target_ts_col} THEN
+    WHEN MATCHED AND source.event_ts > target.event_ts THEN
       UPDATE SET *
     WHEN NOT MATCHED THEN
       INSERT *
-""")
-
-print("Iceberg MERGE INTO operation completed.")
+\"\"\")
 
 spark.stop()
+
+# === END SPARK TEMPLATE (DO NOT REMOVE OR ABBREVIATE) ===
 '''
 
 
@@ -207,7 +185,7 @@ spark.stop()
 def llm_generate_scripts(state: AgentState) -> AgentState:
     """
     Ask the LLM to produce 5 failing variants of a REAL Spark application
-    by modifying Spark logic only.
+    by modifying Spark logic only, while preserving the full template.
     """
 
     spark_template = SPARK_APP_TEMPLATE
@@ -216,37 +194,50 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
         SystemMessage(
             content=(
                 "You are a senior Spark + Iceberg engineer.\n\n"
-                "You are given a REAL production-grade PySpark application.\n\n"
-                "Your task:\n"
+
+                "You are given a REAL, COMPLETE, production-grade PySpark application.\n"
+                "You MUST treat it as IMMUTABLE SOURCE CODE.\n\n"
+
+                "YOUR TASK:\n"
                 "Create EXACTLY 5 VARIANTS of this application.\n\n"
-                "Rules (VERY IMPORTANT):\n"
-                "- You MUST start from the provided code\n"
-                "- You MUST preserve overall structure\n"
+
+                "ABSOLUTE RULES (NON-NEGOTIABLE):\n"
+                "- You MUST return the ENTIRE script for each variant\n"
+                "- You MUST NOT remove, omit, or summarize any part of the code\n"
+                "- You MUST NOT use comments like '... rest of code unchanged'\n"
+                "- You MUST keep the BEGIN/END markers EXACTLY as-is\n"
                 "- You MAY ONLY modify Spark / Iceberg logic\n"
                 "- NO artificial Python errors\n"
                 "- NO 'raise Exception'\n"
-                "- NO nonsense lines of code\n\n"
-                "Each variant MUST FAIL for a DIFFERENT REASON:\n"
+                "- NO dummy or nonsensical code\n\n"
+
+                "FAILURE REQUIREMENTS:\n"
+                "Each variant MUST FAIL for a DIFFERENT Spark-related reason:\n"
                 "1. Spark SQL / Catalyst analysis failure\n"
-                "2. Iceberg schema mismatch during write or merge\n"
-                "3. Runtime failure caused by extreme skew or repartitioning\n"
+                "2. Iceberg schema mismatch during write or MERGE\n"
+                "3. Runtime failure caused by extreme skew or repartitioning logic\n"
                 "4. Ambiguous or invalid column resolution in MERGE\n"
-                "5. Invalid MERGE semantics (UPDATE/INSERT contract violation)\n\n"
-                "Failures must occur naturally during Spark execution.\n\n"
-                "Return STRICT JSON ONLY in this format:\n"
+                "5. Invalid MERGE semantics (UPDATE / INSERT contract violation)\n\n"
+
+                "Failures MUST arise naturally from Spark execution.\n\n"
+
+                "OUTPUT FORMAT (STRICT):\n"
+                "Return JSON ONLY. No markdown. No backticks. No explanations.\n\n"
                 "{\n"
                 "  \"scripts\": [\n"
                 "    {\n"
                 "      \"name\": \"string\",\n"
-                "      \"description\": \"why this fails\",\n"
-                "      \"code\": \"full modified pyspark script\"\n"
+                "      \"description\": \"why this Spark job fails\",\n"
+                "      \"code\": \"FULL pyspark script INCLUDING ALL TEMPLATE CODE\"\n"
                 "    }\n"
                 "  ]\n"
                 "}\n\n"
-                "DO NOT include markdown.\n"
-                "DO NOT include backticks.\n"
-                "DO NOT explain outside JSON.\n\n"
-                "Here is the BASE APPLICATION:\n\n"
+
+                "IMPORTANT:\n"
+                "If ANY part of the template is missing, abbreviated, or replaced,\n"
+                "your output is INVALID and will be rejected.\n\n"
+
+                "HERE IS THE BASE APPLICATION (DO NOT ABBREVIATE):\n\n"
                 f"{spark_template}"
             )
         )
@@ -255,9 +246,39 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
     response = llm.invoke(prompt)
     payload = json.loads(response.content)
 
+    # -----------------------------
     # Defensive validation
+    # -----------------------------
     if "scripts" not in payload or len(payload["scripts"]) != 5:
         raise RuntimeError("LLM did not return exactly 5 Spark scripts")
+
+    def validate_full_script(original: str, generated: str):
+        required_markers = [
+            "BEGIN SPARK TEMPLATE",
+            "END SPARK TEMPLATE",
+            "DataGenerator",
+            "MERGE INTO",
+            "spark.stop()",
+        ]
+
+        for marker in required_markers:
+            if marker not in generated:
+                raise RuntimeError(
+                    f"Generated script missing required marker: {marker}"
+                )
+
+        orig_lines = [l for l in original.splitlines() if l.strip()]
+        gen_lines = [l for l in generated.splitlines() if l.strip()]
+
+        # Reject summarized / abbreviated scripts
+        if len(gen_lines) < 0.9 * len(orig_lines):
+            raise RuntimeError(
+                "Generated script is too short — template was likely abbreviated"
+            )
+
+    # Validate every generated script
+    for script in payload["scripts"]:
+        validate_full_script(SPARK_APP_TEMPLATE, script["code"])
 
     state["scripts"] = payload["scripts"]
     return state
