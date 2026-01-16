@@ -162,9 +162,9 @@ def create_and_run_jobs(state: AgentState) -> AgentState:
 
         spark_job = cdejob.CdeSparkJob(CDE_CONNECTION)
         job_def = spark_job.createJobDefinition(
-            job_name=job_name,
-            resourceName=RESOURCE_NAME,
-            applicationFile=script["filename"],
+            CDE_JOB_NAME=job_name,
+            CDE_RESOURCE_NAME=RESOURCE_NAME,
+            APPLICATION_FILE_NAME=script["filename"],
             executorMemory="2g",
             executorCores=2,
         )
