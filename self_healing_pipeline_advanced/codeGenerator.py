@@ -181,11 +181,12 @@ spark.stop()
 # =========================================================
 # LANGGRAPH NODES
 # =========================================================
+import base64
 
 def llm_generate_scripts(state: AgentState) -> AgentState:
     """
     Ask the LLM to produce 5 failing variants of a REAL Spark application
-    by modifying Spark logic only, while preserving the full template.
+    by modifying Spark logic only. Uses base64 to avoid JSON corruption.
     """
 
     spark_template = SPARK_APP_TEMPLATE
@@ -194,65 +195,59 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
         SystemMessage(
             content=(
                 "You are a senior Spark + Iceberg engineer.\n\n"
+                "You are given a COMPLETE production PySpark application.\n"
+                "Treat it as IMMUTABLE SOURCE CODE.\n\n"
 
-                "You are given a REAL, COMPLETE, production-grade PySpark application.\n"
-                "You MUST treat it as IMMUTABLE SOURCE CODE.\n\n"
-
-                "YOUR TASK:\n"
+                "TASK:\n"
                 "Create EXACTLY 5 VARIANTS of this application.\n\n"
 
-                "ABSOLUTE RULES (NON-NEGOTIABLE):\n"
+                "ABSOLUTE RULES:\n"
                 "- You MUST return the ENTIRE script for each variant\n"
-                "- You MUST NOT remove, omit, or summarize any part of the code\n"
-                "- You MUST NOT use comments like '... rest of code unchanged'\n"
-                "- You MUST keep the BEGIN/END markers EXACTLY as-is\n"
+                "- You MUST NOT remove or summarize any code\n"
+                "- You MUST keep BEGIN/END template markers\n"
                 "- You MAY ONLY modify Spark / Iceberg logic\n"
-                "- NO artificial Python errors\n"
-                "- NO 'raise Exception'\n"
-                "- NO dummy or nonsensical code\n\n"
+                "- NO artificial Python errors\n\n"
 
-                "FAILURE REQUIREMENTS:\n"
-                "Each variant MUST FAIL for a DIFFERENT Spark-related reason:\n"
+                "FAILURE TYPES (use each once):\n"
                 "1. Spark SQL / Catalyst analysis failure\n"
                 "2. Iceberg schema mismatch during write or MERGE\n"
-                "3. Runtime failure caused by extreme skew or repartitioning logic\n"
+                "3. Runtime failure from extreme skew or repartitioning\n"
                 "4. Ambiguous or invalid column resolution in MERGE\n"
-                "5. Invalid MERGE semantics (UPDATE / INSERT contract violation)\n\n"
+                "5. Invalid MERGE semantics\n\n"
 
-                "Failures MUST arise naturally from Spark execution.\n\n"
-
-                "OUTPUT FORMAT (STRICT):\n"
-                "Return JSON ONLY. No markdown. No backticks. No explanations.\n\n"
+                "OUTPUT FORMAT (STRICT JSON ONLY):\n\n"
                 "{\n"
                 "  \"scripts\": [\n"
                 "    {\n"
                 "      \"name\": \"string\",\n"
                 "      \"description\": \"why this Spark job fails\",\n"
-                "      \"code\": \"FULL pyspark script INCLUDING ALL TEMPLATE CODE\"\n"
+                "      \"code_base64\": \"BASE64 ENCODED FULL SCRIPT\"\n"
                 "    }\n"
                 "  ]\n"
                 "}\n\n"
 
                 "IMPORTANT:\n"
-                "If ANY part of the template is missing, abbreviated, or replaced,\n"
-                "your output is INVALID and will be rejected.\n\n"
+                "- Encode the FULL SCRIPT using base64\n"
+                "- Do NOT return raw code\n"
+                "- Do NOT include markdown or explanations\n\n"
 
-                "HERE IS THE BASE APPLICATION (DO NOT ABBREVIATE):\n\n"
+                "BASE APPLICATION:\n\n"
                 f"{spark_template}"
             )
         )
     ]
 
     response = llm.invoke(prompt)
+
+    # ---- Parse JSON safely ----
     payload = json.loads(response.content)
 
-    # -----------------------------
-    # Defensive validation
-    # -----------------------------
     if "scripts" not in payload or len(payload["scripts"]) != 5:
         raise RuntimeError("LLM did not return exactly 5 Spark scripts")
 
-    def validate_full_script(original: str, generated: str):
+    def validate_and_decode(original: str, encoded: str) -> str:
+        decoded = base64.b64decode(encoded).decode("utf-8")
+
         required_markers = [
             "BEGIN SPARK TEMPLATE",
             "END SPARK TEMPLATE",
@@ -262,27 +257,34 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
         ]
 
         for marker in required_markers:
-            if marker not in generated:
-                raise RuntimeError(
-                    f"Generated script missing required marker: {marker}"
-                )
+            if marker not in decoded:
+                raise RuntimeError(f"Missing required marker: {marker}")
 
         orig_lines = [l for l in original.splitlines() if l.strip()]
-        gen_lines = [l for l in generated.splitlines() if l.strip()]
+        gen_lines = [l for l in decoded.splitlines() if l.strip()]
 
-        # Reject summarized / abbreviated scripts
         if len(gen_lines) < 0.9 * len(orig_lines):
-            raise RuntimeError(
-                "Generated script is too short — template was likely abbreviated"
-            )
+            raise RuntimeError("Generated script was abbreviated")
 
-    # Validate every generated script
+        return decoded
+
+    # ---- Decode + validate ----
+    validated_scripts = []
+
     for script in payload["scripts"]:
-        validate_full_script(SPARK_APP_TEMPLATE, script["code"])
+        full_code = validate_and_decode(
+            SPARK_APP_TEMPLATE,
+            script["code_base64"],
+        )
 
-    state["scripts"] = payload["scripts"]
+        validated_scripts.append({
+            "name": script["name"],
+            "description": script["description"],
+            "code": full_code,
+        })
+
+    state["scripts"] = validated_scripts
     return state
-
 
 
 def create_resource_once(state: AgentState) -> AgentState:
