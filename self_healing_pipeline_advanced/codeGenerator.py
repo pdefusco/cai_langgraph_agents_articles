@@ -269,7 +269,7 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
 import time
 import json
 
-def wait_for_resource_ready(resource_name: str, timeout=10, poll_interval=5):
+def wait_for_resource_ready(resource_name: str, timeout=120, poll_interval=5):
     """
     Poll CDE until the Files Resource is usable.
     """
