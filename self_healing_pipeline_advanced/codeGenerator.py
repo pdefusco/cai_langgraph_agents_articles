@@ -204,15 +204,17 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
                 "Your task:\n"
                 "Create EXACTLY 5 VARIANTS of this application.\n\n"
                 "Rules (VERY IMPORTANT):\n"
-                "- Start from the provided code\n"
-                "- Preserve overall structure\n"
-                "- Modify ONLY Spark / Iceberg logic\n"
+                "- You MUST start from the provided code\n"
+                "- You MUST preserve overall structure\n"
+                "- You MAY ONLY modify Spark / Iceberg logic\n"
                 "- NO artificial Python errors\n"
                 "- NO 'raise Exception'\n"
                 "- NO nonsense lines of code\n"
-                "- NO comments or docstrings\n"
-                "- USE ONLY ASCII CHARACTERS\n"
-                "- MINIMIZE newlines and blank lines\n\n"
+                "- **DO NOT INCLUDE COMMENTS OR DOCSTRINGS**, EXCEPT THE FOLLOWING MARKERS MUST BE PRESERVED:\n"
+                "  \"# === BEGIN SPARK TEMPLATE (DO NOT REMOVE OR ABBREVIATE) ===\"\n"
+                "  \"# === END SPARK TEMPLATE (DO NOT REMOVE OR ABBREVIATE) ===\"\n"
+                "- **USE ONLY ASCII CHARACTERS**\n"
+                "- **MINIMIZE NEWLINES AND BLANK LINES**, but do NOT remove the BEGIN/END SPARK TEMPLATE lines\n\n"
                 "Each variant MUST FAIL for a DIFFERENT REASON:\n"
                 "1. Spark SQL / Catalyst analysis failure\n"
                 "2. Iceberg schema mismatch during write or merge\n"
@@ -225,17 +227,19 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
                 "    {\n"
                 "      \"name\": \"string\",\n"
                 "      \"description\": \"why this fails\",\n"
-                "      \"code\": \"full modified PySpark script, raw ASCII\"\n"
+                "      \"code_b64\": \"full modified PySpark script, base64-encoded, with markers preserved\"\n"
                 "    }\n"
                 "  ]\n"
                 "}\n\n"
-                "DO NOT include markdown or backticks.\n"
+                "DO NOT include markdown.\n"
+                "DO NOT include backticks.\n"
                 "DO NOT explain outside JSON.\n\n"
                 "Here is the BASE APPLICATION:\n\n"
-                f"{spark_template}"
+                f"{SPARK_APP_TEMPLATE}"
             )
         )
     ]
+
 
     # Call the LLM
     response = llm.invoke(prompt)
