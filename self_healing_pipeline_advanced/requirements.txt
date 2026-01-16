@@ -1,0 +1,11 @@
+gradio>=6.2,<7.0
+langgraph>=0.2.0
+langchain>=0.1.0
+langchain-openai>=0.1.0
+requests>=2.31.0
+tenacity>=8.2.0
+pandas>=1.5.0
+typing-extensions>=4.7.0
+numpy>=1.25.0
+tqdm>=4.65.0
+cdepy
