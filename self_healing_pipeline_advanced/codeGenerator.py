@@ -185,16 +185,11 @@ import base64
 import re
 import json
 
-import re
-import json
-
 def llm_generate_scripts(state: AgentState) -> AgentState:
     """
-    Ask the LLM to produce 5 failing variants of a REAL Spark application
-    by modifying Spark logic only. Returns raw ASCII code with strict validation.
+    Ask the LLM to produce 5 failing variants of a REAL Spark application.
+    Uses plain-text separators and minimal cleaning instead of JSON/base64.
     """
-
-    spark_template = SPARK_APP_TEMPLATE
 
     prompt = [
         SystemMessage(
@@ -210,90 +205,70 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
                 "- NO artificial Python errors\n"
                 "- NO 'raise Exception'\n"
                 "- NO nonsense lines of code\n"
-                "- **DO NOT INCLUDE COMMENTS OR DOCSTRINGS**, EXCEPT THE FOLLOWING MARKERS MUST BE PRESERVED:\n"
-                "  \"# === BEGIN SPARK TEMPLATE (DO NOT REMOVE OR ABBREVIATE) ===\"\n"
-                "  \"# === END SPARK TEMPLATE (DO NOT REMOVE OR ABBREVIATE) ===\"\n"
+                "- **DO NOT INCLUDE COMMENTS OR DOCSTRINGS**\n"
                 "- **USE ONLY ASCII CHARACTERS**\n"
-                "- **MINIMIZE NEWLINES AND BLANK LINES**, but do NOT remove the BEGIN/END SPARK TEMPLATE lines\n\n"
+                "- **MINIMIZE NEWLINES AND BLANK LINES**\n\n"
                 "Each variant MUST FAIL for a DIFFERENT REASON:\n"
                 "1. Spark SQL / Catalyst analysis failure\n"
                 "2. Iceberg schema mismatch during write or merge\n"
                 "3. Runtime failure caused by extreme skew or repartitioning\n"
                 "4. Ambiguous or invalid column resolution in MERGE\n"
                 "5. Invalid MERGE semantics (UPDATE/INSERT contract violation)\n\n"
-                "Return STRICT JSON ONLY in this format:\n"
-                "{\n"
-                "  \"scripts\": [\n"
-                "    {\n"
-                "      \"name\": \"string\",\n"
-                "      \"description\": \"why this fails\",\n"
-                "      \"code_b64\": \"full modified PySpark script, base64-encoded, with markers preserved\"\n"
-                "    }\n"
-                "  ]\n"
-                "}\n\n"
-                "DO NOT include markdown.\n"
-                "DO NOT include backticks.\n"
-                "DO NOT explain outside JSON.\n\n"
+                "Return a single plain-text response, using these separators exactly:\n"
+                "=== SCRIPT 1 ===\n"
+                "<full PySpark code>\n\n"
+                "=== SCRIPT 2 ===\n"
+                "<full PySpark code>\n\n"
+                "... up to SCRIPT 5\n\n"
+                "Do NOT include markdown, backticks, or any explanations outside the scripts.\n\n"
                 "Here is the BASE APPLICATION:\n\n"
                 f"{SPARK_APP_TEMPLATE}"
             )
         )
     ]
 
-
     # Call the LLM
     response = llm.invoke(prompt)
+    raw_text = response.content
 
-    # ---- Debug: print first 500 chars of LLM response ----
-    print("[DEBUG] LLM response received (truncated 500 chars):")
-    print(response.content[:500])
+    # ---- Debug output ----
+    print("[DEBUG] LLM raw output (first 1000 chars):")
+    print(raw_text[:1000])
 
-    # ---- Parse JSON safely ----
-    try:
-        payload = json.loads(response.content)
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"Failed to parse LLM JSON response: {e}\nResponse content:\n{response.content}")
+    # ---- Split by script markers ----
+    scripts = []
+    for i in range(1, 6):
+        marker = f"=== SCRIPT {i} ==="
+        if marker not in raw_text:
+            raise RuntimeError(f"LLM did not return expected marker '{marker}'")
+        # Grab text between this marker and the next
+        if i < 5:
+            next_marker = f"=== SCRIPT {i+1} ==="
+            code_block = raw_text.split(marker)[1].split(next_marker)[0]
+        else:
+            code_block = raw_text.split(marker)[1]  # last script goes to end
+        # Clean up
+        lines = []
+        for line in code_block.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith("```") or line.startswith("#"):
+                continue
+            lines.append(line)
+        cleaned_code = "\n".join(lines)
+        scripts.append({
+            "name": f"Variant {i}",
+            "description": f"Failing variant {i} of Spark application",
+            "code": cleaned_code
+        })
 
-    if "scripts" not in payload or len(payload["scripts"]) != 5:
-        raise RuntimeError(
-            f"LLM did not return exactly 5 Spark scripts. Got {len(payload.get('scripts', []))} scripts."
-        )
+    if len(scripts) != 5:
+        raise RuntimeError(f"Expected 5 scripts, got {len(scripts)}")
 
-    # ---- Validate each script ----
-    required_markers = [
-        "# === BEGIN SPARK TEMPLATE (DO NOT REMOVE OR ABBREVIATE) ===",
-        "# === END SPARK TEMPLATE (DO NOT REMOVE OR ABBREVIATE) ===",
-        "DataGenerator",
-        "MERGE INTO",
-        "spark.stop()",
-    ]
-
-
-    for idx, script in enumerate(payload["scripts"], start=1):
-        code = script.get("code")
-        if not code:
-            raise RuntimeError(f"Script {script.get('name', idx)} missing 'code' field")
-
-        # Ensure only ASCII characters
-        if not all(ord(c) < 128 for c in code):
-            raise RuntimeError(f"Script '{script.get('name')}' contains non-ASCII characters")
-
-        # Ensure all required markers are present
-        for marker in required_markers:
-            if marker not in code:
-                raise RuntimeError(
-                    f"Marker '{marker}' missing in decoded script '{script.get('name')}'. Check LLM output."
-                )
-
-        # Ensure generated script isn't too short
-        orig_lines = [l for l in spark_template.splitlines() if l.strip()]
-        gen_lines = [l for l in code.splitlines() if l.strip()]
-        if len(gen_lines) < 0.9 * len(orig_lines):
-            raise RuntimeError(f"Generated script '{script.get('name')}' seems truncated")
-
-    # ---- Save scripts to state ----
-    state["scripts"] = payload["scripts"]
+    state["scripts"] = scripts
     return state
+
 
 import time
 import json
