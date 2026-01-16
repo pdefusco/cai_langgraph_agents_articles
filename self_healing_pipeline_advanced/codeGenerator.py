@@ -257,12 +257,13 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
 
     # ---- Validate each script ----
     required_markers = [
-        "BEGIN SPARK TEMPLATE",
-        "END SPARK TEMPLATE",
+        "# === BEGIN SPARK TEMPLATE (DO NOT REMOVE OR ABBREVIATE) ===",
+        "# === END SPARK TEMPLATE (DO NOT REMOVE OR ABBREVIATE) ===",
         "DataGenerator",
         "MERGE INTO",
         "spark.stop()",
     ]
+
 
     for idx, script in enumerate(payload["scripts"], start=1):
         code = script.get("code")
