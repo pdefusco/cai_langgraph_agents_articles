@@ -183,11 +183,13 @@ spark.stop()
 # =========================================================
 import base64
 import re
+import json
 
 def llm_generate_scripts(state: AgentState) -> AgentState:
     """
     Ask the LLM to produce 5 failing variants of a REAL Spark application
     by modifying Spark logic only. Uses base64 to avoid JSON corruption.
+    Includes step-by-step validation to catch issues early.
     """
 
     spark_template = SPARK_APP_TEMPLATE
@@ -229,40 +231,85 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
                 "DO NOT include backticks.\n"
                 "DO NOT explain outside JSON.\n\n"
                 "Here is the BASE APPLICATION:\n\n"
-                f"{SPARK_APP_TEMPLATE}"
+                f"{spark_template}"
             )
         )
     ]
 
-    # Call the LLM
+    # -------------------------------
+    # Step 1: Call the LLM
+    # -------------------------------
     response = llm.invoke(prompt)
+    print("[DEBUG] LLM response received (truncated 500 chars):")
+    print(response.content[:500])
 
-    # ---- Parse JSON safely ----
-    payload = json.loads(response.content)
+    # -------------------------------
+    # Step 2: Parse JSON safely
+    # -------------------------------
+    try:
+        payload = json.loads(response.content)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(
+            f"Failed to parse LLM JSON response: {e}\n"
+            f"Raw response (truncated 1000 chars):\n{response.content[:1000]}"
+        )
 
-    if "scripts" not in payload or len(payload["scripts"]) != 5:
-        raise RuntimeError("LLM did not return exactly 5 Spark scripts")
+    if "scripts" not in payload:
+        raise RuntimeError(f"LLM JSON missing 'scripts' key. Payload keys: {list(payload.keys())}")
+    if len(payload["scripts"]) != 5:
+        raise RuntimeError(f"Expected 5 scripts, got {len(payload['scripts'])}. Payload keys: {list(payload.keys())}")
 
-    # ---- Decode Base64 scripts ----
-    for script in payload["scripts"]:
+    # -------------------------------
+    # Step 3: Decode Base64 scripts & validate content
+    # -------------------------------
+    required_markers = [
+        "BEGIN SPARK TEMPLATE",
+        "END SPARK TEMPLATE",
+        "DataGenerator",
+        "MERGE INTO",
+        "spark.stop()"
+    ]
+
+    for idx, script in enumerate(payload["scripts"], start=1):
         encoded = script.get("code_b64")
         if not encoded:
             raise RuntimeError(f"Script {script.get('name')} missing 'code_b64' field")
 
-        # Clean whitespace / fix missing padding
-        encoded = re.sub(r"\s+", "", encoded)
-        missing_padding = len(encoded) % 4
+        # Log first few characters for debugging
+        print(f"[DEBUG] Script {idx} '{script.get('name')}' code_b64 start: {encoded[:50]}")
+
+        # Clean whitespace / fix padding
+        encoded_clean = re.sub(r"\s+", "", encoded)
+        missing_padding = len(encoded_clean) % 4
         if missing_padding:
-            encoded += "=" * (4 - missing_padding)
+            encoded_clean += "=" * (4 - missing_padding)
 
+        # Decode Base64
         try:
-            decoded = base64.b64decode(encoded).decode("utf-8")
+            decoded = base64.b64decode(encoded_clean).decode("utf-8")
         except Exception as e:
-            raise RuntimeError(f"Failed to decode Base64 for script {script.get('name')}: {e}")
+            raise RuntimeError(f"Failed Base64 decode for script '{script.get('name')}': {e}")
 
-        script["code"] = decoded  # Replace code_b64 with decoded code
+        # Validate required markers
+        for marker in required_markers:
+            if marker not in decoded:
+                raise RuntimeError(f"Marker '{marker}' missing in decoded script '{script.get('name')}'. Check LLM output.")
 
+        # Optional: Check length relative to template
+        template_lines = [l for l in spark_template.splitlines() if l.strip()]
+        decoded_lines = [l for l in decoded.splitlines() if l.strip()]
+        if len(decoded_lines) < 0.8 * len(template_lines):
+            print(f"[WARNING] Script '{script.get('name')}' is significantly shorter than template.")
+
+        # Store decoded code
+        script["code"] = decoded
+
+    # -------------------------------
+    # Step 4: Update state
+    # -------------------------------
     state["scripts"] = payload["scripts"]
+    print("[DEBUG] All scripts decoded and validated successfully.")
+
     return state
 
 
