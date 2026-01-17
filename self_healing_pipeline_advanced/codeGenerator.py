@@ -234,7 +234,7 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
                         '- Keep the main logic, table writes, merges, and generator structure intact.\n'
                         '- Remove ALL comments and docstrings.\n'
                         '- Remove any markdown ticks.\n'
-                        '- Ensure multi-line strings (e.g., spark.sql(f"""...""")) are fully preserved, with closing triple quotes and parentheses.\n'
+                        '- Ensure multi-line strings (e.g., spark.sql(f\"\"\"...\"\"\")) are fully preserved, with closing triple quotes and parentheses.'
                         '- Ensure chained builder calls have no extra spaces: builder.appName(...).getOrCreate()\n'
                         '- Return ONLY full Python code.\n\n'
                         f'BASE TEMPLATE:\n{SPARK_APP_TEMPLATE}'
