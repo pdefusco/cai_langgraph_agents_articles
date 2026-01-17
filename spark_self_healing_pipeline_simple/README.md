@@ -1,10 +1,10 @@
 # How to Implement a CDE Spark Self Healing Pipeline in CAI with LangGraph, Nvidia Nemotron 49B, Cloudera AI Inference Service
 
-![alt text]()
+![alt text](img/spark_self_healing_pipeline_simple_sol_arch.png)
 
 ## Objective
 
-In this tutorial, you will implement a MultiAgent System to continuously monitor a Spark Application running in Cloudera Data Engineering, correct any potential coding errors and finally create and run the updated version of the application. You will build this MAS in Cloudera AI leveraging LangGraph, Nvidia Nemotron 49B, and the Cloudera AI Inference Service.
+In this tutorial, you will implement a MultiAgent System to continuously monitor a Spark Application running in Cloudera Data Engineering, correct any potential coding errors and finally create and run the updated version of the application. We will call this a "Self Healing Pipeline". You will build this MAS in Cloudera AI leveraging LangGraph, Nvidia Nemotron 49B, and the Cloudera AI Inference Service.
 
 This tutorial can serve as a reusable template to build MultiAgent Systems that autonomously monitor and take corrective actions against data engineering pipelines.
 
@@ -174,17 +174,13 @@ Resource Profile: 2 vCPU / 8 iGB Mem / 0 GPU
 Script: spark_self_healing_pipeline/selfHealingPipeline.py
 ```
 
-![alt text](img/app-settings.png)
-
-![alt text](img/app-deployed-ok.png)
+![alt text](img/shp_app_settings.png)
 
 #### 6. Interact with the Agent App
 
 Open the Application and wait a few seconds until the UI is populated. As a whole, this UI presents you with the Spark application code and related Driver stdout logs, an explanation of the issues found by the LLM (Nemotron), the updated version of the Spark application code, and confirmation of the new CDE Job and dependencies having been created and executed.
 
-![alt text](img/app-output-1.png)
-
-![alt text](img/app-output-2.png)
+![alt text](img/final-ui-view.png)
 
 
 ## Summary & Next Steps
