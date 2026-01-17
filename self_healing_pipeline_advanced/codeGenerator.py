@@ -226,19 +226,20 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
         for attempt in range(3):
             prompt = [
                 SystemMessage(
-                    content=(
-                        'You are a senior Spark + Iceberg engineer.\n'
-                        'Produce a single **intentionally failing variant** of this PySpark application.\n'
-                        f'Failure: {failure_desc}\n'
-                        '- Preserve all Python indentation.\n'
-                        '- Keep the main logic, table writes, merges, and generator structure intact.\n'
-                        '- Remove ALL comments and docstrings.\n'
-                        '- Remove any markdown ticks.\n'
-                        '- Ensure multi-line strings (e.g., spark.sql(f\"\"\"...\"\"\")) are fully preserved, with closing triple quotes and parentheses.'
-                        '- Ensure chained builder calls have no extra spaces: builder.appName(...).getOrCreate()\n'
-                        '- Return ONLY full Python code.\n\n'
-                        f'BASE TEMPLATE:\n{SPARK_APP_TEMPLATE}'
-                    )
+                    content=f'''You are a senior Spark + Iceberg engineer.
+            Produce a single **intentionally failing variant** of this PySpark application.
+            Failure: {failure_desc}
+            - Preserve all Python indentation.
+            - Keep the main logic, table writes, merges, and generator structure intact.
+            - Remove ALL comments and docstrings.
+            - Remove any markdown ticks.
+            - Ensure multi-line strings (e.g., spark.sql(f\"\"\"...\"\"\")) are fully preserved, with closing triple quotes and parentheses.
+            - Ensure chained builder calls have no extra spaces: builder.appName(...).getOrCreate()
+            - Return ONLY full Python code.
+
+            BASE TEMPLATE:
+            {SPARK_APP_TEMPLATE}
+            '''
                 )
             ]
 
