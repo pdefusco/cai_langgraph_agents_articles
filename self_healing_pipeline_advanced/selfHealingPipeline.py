@@ -110,16 +110,21 @@ llm = ChatOpenAI(
 import os
 import json
 
-JOB_NAME = os.environ.get("JOB_NAME", "failing-pipeline")
+LLM_FAILING_JOBS = [
+    "llm-failing-job-1",
+    "llm-failing-job-2",
+    "llm-failing-job-3",
+    "llm-failing-job-4",
+    "llm-failing-job-5",
+]
 
 def fetch_latest_run(state: dict = None) -> dict:
     """
-    Fetch the latest run for the job matching JOB_NAME.
+    Fetch the latest run among the 5 LLM failing jobs.
     """
     if state is None:
-        state = {}  # Initialize empty dict if None
+        state = {}
 
-    # Get all job runs
     result = CDE_MANAGER.listJobRuns()
     if result == -1 or not result:
         state["latest_run_id"] = None
@@ -131,18 +136,21 @@ def fetch_latest_run(state: dict = None) -> dict:
     except Exception as e:
         raise RuntimeError(f"Failed to parse listJobRuns() response: {result}") from e
 
-    # Filter runs by exact JOB_NAME
-    job_runs = [r for r in runs if r.get("job") == JOB_NAME]
+    # Filter runs by the 5 LLM failing job names
+    relevant_runs = [r for r in runs if r.get("job") in LLM_FAILING_JOBS]
 
-    if not job_runs:
+    if not relevant_runs:
         state["latest_run_id"] = None
         state["latest_run_status"] = None
         return state
 
-    # Pick the latest run based on 'started' timestamp
-    latest = max(job_runs, key=lambda r: r.get("started", ""))
-    state["latest_run_id"] = str(latest.get("id"))
-    state["latest_run_status"] = latest.get("status", "").upper()
+    # Pick the latest run overall based on 'started' timestamp
+    latest_run = max(relevant_runs, key=lambda r: r.get("started", ""))
+    state["latest_run_id"] = str(latest_run.get("id"))
+    state["latest_run_status"] = latest_run.get("status", "").upper()
+
+    # Store the job name of the latest run too
+    state["latest_job_name"] = latest_run.get("job", "UNKNOWN")
 
     return state
 
@@ -368,6 +376,7 @@ def ui_refresh(state: dict = None):
     state = fetch_latest_run(state)
     latest_run_id = state.get("latest_run_id")
     latest_run_status = state.get("latest_run_status", "UNKNOWN")
+    latest_job_name = state.get("latest_job_name", "N/A")
 
     spark_script = ""
     spark_logs = ""
@@ -393,8 +402,8 @@ def ui_refresh(state: dict = None):
             llm_analysis = f"Failed to fetch logs or script: {e}"
 
     status_text = (
-        f"Job Name: {JOB_NAME}\n"
-        f"Latest Run ID: {latest_run_id or 'N/A'}\n"
+        f"Latest Failing Job: {latest_job_name}\n"
+        f"Run ID: {latest_run_id or 'N/A'}\n"
         f"Status: {latest_run_status}\n"
         f"Jobs API URL: {JOBS_API_URL}\n"
         f"Application File: {APPLICATION_FILE_NAME}"
@@ -466,12 +475,12 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto Remediator", css=css) as demo
     # Page title
     gr.Markdown("<div class='page-title'>CDE Spark Job Monitor & Auto Remediator</div>")
 
-    # Top row: original job status, remediation summary, updated job info
+    # Top row: show latest failing job, remediation summary, updated job info
     with gr.Row():
-        status_box = gr.Textbox(
-            label="Original Job Status",
-            lines=5,
-            interactive=False
+        latest_job_box = gr.Textbox(
+            label="Latest Failing Job Being Processed",
+            lines=2,
+            interactive=False,
         )
         remediation_summary_box = gr.Textbox(
             label="Remediation Summary",
@@ -483,6 +492,7 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto Remediator", css=css) as demo
             lines=5,
             interactive=False
         )
+
 
     # Second row: code, logs, analysis
     with gr.Row():
@@ -525,7 +535,7 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto Remediator", css=css) as demo
         fn=ui_refresh,
         inputs=[],
         outputs=[
-            status_box,
+            latest_job_box,
             remediation_summary_box,
             updated_job_box,
             script_box,
