@@ -58,19 +58,9 @@ Runtimes:
   PBJ Workbench	Python 3.10	Standard 2025.09
 ```
 
-![alt text](img/proj-1.png)
-
-![alt text](img/proj-2.png)
-
 #### 2. Create the Project Environment Variables with Secrets
 
 Navigate to the AI Inference Service UI and open the model endpoint. Then, copy the Model ID, Endpoint URL and CDP Token to your clipboard.
-
-![alt text](img/endpoint-1.png)
-
-![alt text](img/endpoint-2.png)
-
-![alt text](img/embedding.png)
 
 In the CAI Project Settings, create the following Environment Variables using the values copied above.
 
@@ -79,8 +69,6 @@ LLM_MODEL_ID: Enter the Model ID for Nemotron from the Inference Service UI
 LLM_ENDPOINT_BASE_URL: Enter the Endpoint URL for Nemotron from the Inference Service UI
 LLM_CDP_TOKEN: Enter the CDP Token for Nemotron from the Inference Service UI
 ```
-
-![alt text](img/env-vars.png)
 
 #### 3. Create and Launch the CDE Spark Pipeline
 
@@ -152,15 +140,11 @@ Spark Runtime Addon: Spark 3.5.1
 Resource Profile: 2 vCPU / 8 iGB Mem / 0 GPU
 ```
 
-![alt text](img/launch-pbj.png)
-
 First, install the requirements by opening the Terminal and running this command:
 
 ```
 pip3 install -r spark_self_healing_pipeline/requirements.txt
 ```
-
-![alt text](img/install-requirements.png)
 
 #### 5. Deploy the Gradio LangGraph MAS as a CAI Application
 
@@ -178,7 +162,7 @@ Script: spark_self_healing_pipeline/selfHealingPipeline.py
 
 #### 6. Interact with the Agent App
 
-Open the Application and wait a few seconds until the UI is populated. As a whole, this UI presents you with the Spark application code and related Driver stdout logs, an explanation of the issues found by the LLM (Nemotron), the updated version of the Spark application code, and confirmation of the new CDE Job and dependencies having been created and executed.
+Open the Application and wait a few seconds until the UI is populated. This UI presents you with the Spark application code and related Driver stdout logs, an explanation of the issues found by the LLM (Nemotron), the updated version of the Spark application code, and confirmation of the new CDE Job and dependencies having been created and executed.
 
 ![alt text](img/final-ui-view.png)
 
