@@ -250,8 +250,11 @@ import tempfile
 import os
 
 def deploy_and_run_fixed_job(state: AgentState):
+
+    base_job_name = LLM_FAILING_JOBS[0]
+
     new_resource = f"{RESOURCE_NAME}-fixed"
-    new_job_name = f"{JOB_NAME}-fixed"
+    new_job_name = f"{base_job_name}-fixed"
 
     CDE_RESOURCE = cderesource.CdeFilesResource(new_resource)
     cdeFilesResourceDefinition = CDE_RESOURCE.createResourceDefinition()
@@ -387,7 +390,9 @@ def ui_refresh(state: dict = None):
     if latest_run_id:
         try:
             spark_logs = CDE_MANAGER.downloadJobRunLogs(str(latest_run_id), "driver/stdout") or ""
-            spark_script = CDE_MANAGER.downloadFileFromResource(RESOURCE_NAME, APPLICATION_FILE_NAME) or ""
+            describeDict = CDE_MANAGER.describeJob(CDE_JOB_NAME)
+            applicationFileName = json.loads(describeDict)['spark']['file']
+            spark_script = CDE_MANAGER.downloadFileFromResource(RESOURCE_NAME, applicationFileName) or ""
 
             state["spark_script"] = spark_script
             state["spark_logs"] = spark_logs
