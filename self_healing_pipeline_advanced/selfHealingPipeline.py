@@ -73,8 +73,6 @@ def init_cde():
 # LANGGRAPH STATE
 # =========================================================
 
-LAST_AGENT_STATE: AgentState | None = None
-
 class AgentState(TypedDict):
     latest_run_id: str | None
     latest_run_status: str | None
@@ -94,6 +92,7 @@ class AgentState(TypedDict):
 
     retried: bool
 
+LAST_AGENT_STATE: AgentState | None = None
 
 # =========================================================
 # LLM
