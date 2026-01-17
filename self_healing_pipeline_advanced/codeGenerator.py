@@ -206,7 +206,6 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
     Fixes:
       - Removes comments/docstrings
       - Removes markdown ticks
-      - Preserves multi-line strings (like spark.sql(f"""..."""))
       - Ensures proper chaining in SparkSession.builder calls
       - Preserves indentation
     """
@@ -233,7 +232,7 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
             - Keep the main logic, table writes, merges, and generator structure intact.
             - Remove ALL comments and docstrings.
             - Remove any markdown ticks.
-            - Preserve multi-line strings (such as those passed to spark.sql) with closing triple quotes and parentheses.
+            - Ensure multi-line strings (e.g., spark.sql(f\"\"\"...\"\"\")) are fully preserved, with closing triple quotes and parentheses.
             - Ensure chained builder calls have no extra spaces: builder.appName(...).getOrCreate()
             - Return ONLY full Python code.
 
