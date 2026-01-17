@@ -207,8 +207,10 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
       - All variants are unique
       - Leading/trailing markdown ticks are removed
       - All comments and docstrings are stripped
-      - Indentation is preserved
+      - Indentation and multi-line strings are preserved
+      - Each variant corresponds to a specific failure description
     """
+    import re
     scripts = []
     seen_hashes = set()
 
@@ -234,6 +236,7 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
                         "- Keep the main logic, table writes, merges, and generator structure intact.\n"
                         "- Remove ALL comments and docstrings.\n"
                         "- Remove any markdown ticks or backticks.\n"
+                        "- Ensure all multi-line strings (e.g., spark.sql(f\"\"\"...\"\"\")) are properly closed with triple quotes and parentheses.\n"
                         "- Return ONLY the full Python code.\n\n"
                         f"BASE TEMPLATE:\n{SPARK_APP_TEMPLATE}"
                     )
@@ -243,32 +246,51 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
             response = llm.invoke(prompt)
             code = response.content.strip()
 
-            # Remove markdown ticks if present
+            # Remove leading/trailing markdown ticks
             code = re.sub(r"^```(?:python)?\s*", "", code)
             code = re.sub(r"\s*```$", "", code)
 
-            # Strip comments and docstrings
+            # Remove comments and standalone docstrings
             code_lines = []
             in_docstring = False
+            in_multiline_sql = False
+
             for line in code.splitlines():
                 stripped = line.strip()
+
+                # Detect spark.sql multi-line strings start
+                if stripped.startswith('spark.sql(f"""'):
+                    in_multiline_sql = True
+
+                if in_multiline_sql:
+                    code_lines.append(line)
+                    if stripped.endswith('"""') or stripped.endswith('""")'):
+                        in_multiline_sql = False
+                    continue
+
+                # Detect docstrings (standalone string literals)
                 if stripped.startswith('"""') or stripped.startswith("'''"):
                     if not in_docstring:
                         in_docstring = True
+                        continue
                     elif in_docstring:
                         in_docstring = False
-                    continue
+                        continue
                 if in_docstring:
                     continue
+
+                # Remove inline comments
                 if "#" in line:
-                    # remove inline comments but keep code before #
                     line = line.split("#", 1)[0].rstrip()
+
                 if line.strip() == "":
                     continue
+
                 code_lines.append(line)
+
             cleaned_code = "\n".join(code_lines)
 
-            # Hash for uniqueness
+            # Ensure uniqueness
             code_hash = hash(cleaned_code)
             if code_hash in seen_hashes:
                 if attempt < 2:
@@ -290,8 +312,6 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
 
     state["scripts"] = scripts
     return state
-
-
 
 import time
 import json
