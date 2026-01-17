@@ -73,6 +73,8 @@ def init_cde():
 # LANGGRAPH STATE
 # =========================================================
 
+LAST_AGENT_STATE: AgentState | None = None
+
 class AgentState(TypedDict):
     latest_run_id: str | None
     latest_run_status: str | None
@@ -358,10 +360,14 @@ app = graph.compile()
 # =========================================================
 
 def run_monitor():
-    app.invoke(
+    global LAST_AGENT_STATE
+
+    result = app.invoke(
         {
             "latest_run_id": None,
             "latest_run_status": None,
+            "latest_job_name": None,
+            "application_file_name": None,
             "spark_logs": None,
             "spark_script": None,
             "llm_analysis": None,
@@ -372,6 +378,9 @@ def run_monitor():
             "retried": False,
         }
     )
+
+    LAST_AGENT_STATE = result
+
 
 
 def agent_loop():
@@ -384,61 +393,48 @@ def agent_loop():
 # UI
 # =========================================================
 
-def ui_refresh(state: dict = None):
-    state = state or {}
-    state = fetch_latest_run(state)
-    latest_run_id = state.get("latest_run_id")
-    latest_run_status = state.get("latest_run_status", "UNKNOWN")
-    latest_job_name = state.get("latest_job_name", "N/A")
+def ui_refresh():
+    global LAST_AGENT_STATE
 
-    spark_script = ""
-    spark_logs = ""
-    llm_analysis = ""
-    improved_script = ""
-    code_diff = ""
+    if not LAST_AGENT_STATE:
+        return (
+            "Waiting for agent...",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+        )
 
-    if latest_run_id:
-        try:
-            spark_script = state.get("spark_script", "")
-            spark_logs = state.get("spark_logs", "")
-
-            state["spark_script"] = spark_script
-            state["spark_logs"] = spark_logs
-
-            if not state.get("retried", False) and latest_run_status == "FAILED":
-                state = llm_analyze_and_fix(state)
-
-            llm_analysis = state.get("llm_analysis", "")
-            improved_script = state.get("improved_script", "")
-            code_diff = state.get("code_diff", "")
-        except Exception as e:
-            llm_analysis = f"Failed to fetch logs or script: {e}"
+    state = LAST_AGENT_STATE
 
     status_text = (
-        f"Latest Failing Job: {latest_job_name}\n"
-        f"Run ID: {latest_run_id or 'N/A'}\n"
-        f"Status: {latest_run_status}\n"
-        f"Jobs API URL: {JOBS_API_URL}\n"
+        f"Latest Failing Job: {state.get('latest_job_name', 'N/A')}\n"
+        f"Run ID: {state.get('latest_run_id', 'N/A')}\n"
+        f"Status: {state.get('latest_run_status', 'UNKNOWN')}\n"
         f"Application File: {state.get('application_file_name', 'N/A')}"
     )
 
-    remediation_summary_text = LAST_REMEDIATION_INFO.get("summary", "No remediation info yet.")
+    remediation_summary_text = state.get(
+        "remediation_summary", "No remediation info yet."
+    )
 
     updated_job_text = (
-        f"Job Name: {LAST_REMEDIATION_INFO.get('job_name', 'N/A')}\n"
-        f"Resource Name: {LAST_REMEDIATION_INFO.get('resource_name', 'N/A')}\n"
-        f"Application File: {state.get('application_file_name', 'N/A')}"
+        f"Job Name: {state.get('new_job_name', 'N/A')}\n"
+        f"Resource Name: {state.get('new_resource_name', 'N/A')}"
     )
 
     return (
         status_text,
         remediation_summary_text,
         updated_job_text,
-        spark_script,
-        spark_logs,
-        llm_analysis,
-        improved_script,
-        code_diff
+        state.get("spark_script", ""),
+        state.get("spark_logs", ""),
+        state.get("llm_analysis", ""),
+        state.get("improved_script", ""),
+        state.get("code_diff", ""),
     )
 
 
