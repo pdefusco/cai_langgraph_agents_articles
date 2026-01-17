@@ -203,12 +203,12 @@ import json
 def llm_generate_scripts(state: AgentState) -> AgentState:
     """
     Generate 5 unique failing variants of the Spark app.
-    Ensures:
-      - All variants are unique
-      - Leading/trailing markdown ticks are removed
-      - All comments and docstrings are stripped
-      - Indentation and multi-line strings are preserved
-      - Each variant corresponds to a specific failure description
+    Fixes:
+      - Removes comments/docstrings
+      - Removes markdown ticks
+      - Preserves multi-line strings (like spark.sql(f"""..."""))
+      - Ensures proper chaining in SparkSession.builder calls
+      - Preserves indentation
     """
     import re
     scripts = []
@@ -223,21 +223,20 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
     ]
 
     for i, failure_desc in enumerate(failure_descriptions, start=1):
-        for attempt in range(3):  # retry up to 3 times if duplicate
+        for attempt in range(3):
             prompt = [
                 SystemMessage(
                     content=(
                         "You are a senior Spark + Iceberg engineer.\n"
-                        "You are given a production-grade PySpark application.\n\n"
-                        "Task:\n"
-                        f"Produce a single **intentionally failing variant** of this application.\n"
-                        f"- Failure: {failure_desc}\n"
-                        "- Preserve all Python indentation exactly.\n"
+                        "Produce a single **intentionally failing variant** of this PySpark application.\n"
+                        f"Failure: {failure_desc}\n"
+                        "- Preserve all Python indentation.\n"
                         "- Keep the main logic, table writes, merges, and generator structure intact.\n"
                         "- Remove ALL comments and docstrings.\n"
-                        "- Remove any markdown ticks or backticks.\n"
-                        "- Ensure all multi-line strings (e.g., spark.sql(f\"\"\"...\"\"\")) are properly closed with triple quotes and parentheses.\n"
-                        "- Return ONLY the full Python code.\n\n"
+                        "- Remove any markdown ticks.\n"
+                        "- Ensure multi-line strings (e.g., spark.sql(f\"\"\"...\"\"\")) are fully preserved, with closing triple quotes and parentheses.\n"
+                        "- Ensure chained builder calls have no extra spaces: builder.appName(...).getOrCreate()\n"
+                        "- Return ONLY full Python code.\n\n"
                         f"BASE TEMPLATE:\n{SPARK_APP_TEMPLATE}"
                     )
                 )
@@ -250,25 +249,25 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
             code = re.sub(r"^```(?:python)?\s*", "", code)
             code = re.sub(r"\s*```$", "", code)
 
-            # Remove comments and standalone docstrings
             code_lines = []
             in_docstring = False
-            in_multiline_sql = False
+            in_sql_block = False
 
             for line in code.splitlines():
                 stripped = line.strip()
 
-                # Detect spark.sql multi-line strings start
+                # Detect start of spark.sql multi-line string
                 if stripped.startswith('spark.sql(f"""'):
-                    in_multiline_sql = True
+                    in_sql_block = True
 
-                if in_multiline_sql:
+                if in_sql_block:
+                    # Keep all lines inside the SQL block, including closing triple quotes
                     code_lines.append(line)
-                    if stripped.endswith('"""') or stripped.endswith('""")'):
-                        in_multiline_sql = False
+                    if stripped.endswith('""")'):
+                        in_sql_block = False
                     continue
 
-                # Detect docstrings (standalone string literals)
+                # Detect standalone docstrings
                 if stripped.startswith('"""') or stripped.startswith("'''"):
                     if not in_docstring:
                         in_docstring = True
@@ -286,17 +285,20 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
                 if line.strip() == "":
                     continue
 
+                # Fix SparkSession builder spacing
+                line = re.sub(r"SparkSession\.builder\s+\.appName", "SparkSession.builder.appName", line)
+                line = re.sub(r"\.getOrCreate\(\)\s+", ".getOrCreate()", line)
+
                 code_lines.append(line)
 
             cleaned_code = "\n".join(code_lines)
 
-            # Ensure uniqueness
+            # Deduplicate
             code_hash = hash(cleaned_code)
             if code_hash in seen_hashes:
                 if attempt < 2:
-                    continue  # retry
+                    continue
                 else:
-                    # allow duplicate after 3 attempts
                     logger.warning(f"[LLM] Duplicate script detected for variant {i}, using anyway")
             seen_hashes.add(code_hash)
 
@@ -305,13 +307,14 @@ def llm_generate_scripts(state: AgentState) -> AgentState:
                 "description": f"Failing variant {i}: {failure_desc}",
                 "code": cleaned_code
             })
-            break  # exit retry loop
+            break
 
     if len(scripts) != 5:
         raise RuntimeError(f"Expected 5 unique scripts, got {len(scripts)}")
 
     state["scripts"] = scripts
     return state
+
 
 import time
 import json
