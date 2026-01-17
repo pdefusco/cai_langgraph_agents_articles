@@ -419,7 +419,7 @@ def ui_refresh(state: dict = None):
         f"Run ID: {latest_run_id or 'N/A'}\n"
         f"Status: {latest_run_status}\n"
         f"Jobs API URL: {JOBS_API_URL}\n"
-        f"Application File: {APPLICATION_FILE_NAME}"
+        f"Application File: {state.get('application_file_name', 'N/A')}"
     )
 
     remediation_summary_text = LAST_REMEDIATION_INFO.get("summary", "No remediation info yet.")
@@ -427,7 +427,7 @@ def ui_refresh(state: dict = None):
     updated_job_text = (
         f"Job Name: {LAST_REMEDIATION_INFO.get('job_name', 'N/A')}\n"
         f"Resource Name: {LAST_REMEDIATION_INFO.get('resource_name', 'N/A')}\n"
-        f"Application File: {APPLICATION_FILE_NAME}"
+        f"Application File: {state.get('application_file_name', 'N/A')}"
     )
 
     return (
