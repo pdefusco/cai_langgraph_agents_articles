@@ -192,10 +192,15 @@ def download_artifacts(state: AgentState):
     state["spark_script"] = script or ""
     return state
 
-import difflib
 import re
+import difflib
 
 def llm_analyze_and_fix(state: AgentState):
+    """
+    Analyze a failing Spark script, produce a fixed version using the LLM,
+    and clean the output to ensure only valid Python code is deployed.
+    """
+    # === 1️⃣ Prepare prompt for LLM ===
     prompt = [
         SystemMessage(
             content=(
@@ -219,31 +224,44 @@ def llm_analyze_and_fix(state: AgentState):
         ),
     ]
 
+    # === 2️⃣ Invoke LLM ===
     response = llm.invoke(prompt)
     text = response.content
 
-    # Split analysis and script
+    # === 3️⃣ Extract analysis and fixed script ===
     if "=== FIXED SCRIPT ===" in text:
-        analysis, fixed_script = text.split("=== FIXED SCRIPT ===", 1)
+        analysis, raw_fixed_script = text.split("=== FIXED SCRIPT ===", 1)
     else:
-        # fallback if LLM didn't produce the exact separator
         analysis = "No analysis returned."
+        raw_fixed_script = state["spark_script"]  # fallback
+
+    # === 4️⃣ Clean fixed script ===
+    def extract_fixed_script(script_text: str) -> str:
+        lines = script_text.splitlines()
+        cleaned_lines = []
+        for line in lines:
+            line = line.strip()
+            # Skip markdown, headings, or explanatory text
+            if line.startswith("```"):
+                continue
+            if line.startswith("#") and not line.startswith("# "):  # keep proper code comments
+                continue
+            if any(line.lower().startswith(prefix) for prefix in ("note:", "explanation:", "troubleshoot", "**")):
+                continue
+            cleaned_lines.append(line)
+        return "\n".join(cleaned_lines).strip()
+
+    fixed_script = extract_fixed_script(raw_fixed_script)
+
+    # === 5️⃣ Optional: Validate Python syntax ===
+    try:
+        compile(fixed_script, "<string>", "exec")
+    except Exception as e:
+        print(f"[LLM FIX ERROR] Python compilation failed: {e}")
+        # fallback to original script if compilation fails
         fixed_script = state["spark_script"]
 
-    # Remove any remaining backticks or markdown
-    fixed_script = fixed_script.replace("```python", "").replace("```", "").strip()
-
-    # Optionally remove placeholder comments
-    lines = []
-    for line in fixed_script.splitlines():
-        if "# ... " in line or "# **FIX**" in line:
-            continue  # skip illustrative comments
-        if "spark.sql(f\"...\"" in line:
-            continue  # skip placeholder SQL
-        lines.append(line)
-    fixed_script = "\n".join(lines)
-
-    # Generate diff
+    # === 6️⃣ Generate diff for visibility ===
     diff = difflib.unified_diff(
         state["spark_script"].splitlines(),
         fixed_script.splitlines(),
@@ -252,10 +270,12 @@ def llm_analyze_and_fix(state: AgentState):
         lineterm="",
     )
 
+    # === 7️⃣ Update AgentState ===
     state["llm_analysis"] = analysis.replace("=== ANALYSIS ===", "").strip()
     state["improved_script"] = fixed_script
     state["code_diff"] = "\n".join(diff)
     state["retried"] = True
+
     return state
 
 
