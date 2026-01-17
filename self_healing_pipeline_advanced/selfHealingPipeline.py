@@ -50,6 +50,8 @@ LAST_REMEDIATION_INFO = {
     "resource_name": "",
 }
 
+REMEDIATED_JOBS: set[str] = set()
+
 # =========================================================
 # GLOBAL CDE OBJECTS
 # =========================================================
@@ -122,40 +124,40 @@ LLM_FAILING_JOBS = [
 ]
 
 def fetch_latest_run(state: dict = None) -> dict:
-    """
-    Fetch the latest run among the 5 LLM failing jobs.
-    """
     if state is None:
         state = {}
 
     result = CDE_MANAGER.listJobRuns()
     if result == -1 or not result:
-        state["latest_run_id"] = None
-        state["latest_run_status"] = None
         return state
 
-    try:
-        runs = json.loads(result).get("runs", [])
-    except Exception as e:
-        raise RuntimeError(f"Failed to parse listJobRuns() response: {result}") from e
+    runs = json.loads(result).get("runs", [])
 
-    # Filter runs by the 5 LLM failing job names
-    relevant_runs = [r for r in runs if r.get("job") in LLM_FAILING_JOBS]
+    # Group latest run per job
+    latest_by_job = {}
+    for r in runs:
+        job = r.get("job")
+        if job in LLM_FAILING_JOBS:
+            if job not in latest_by_job or r["started"] > latest_by_job[job]["started"]:
+                latest_by_job[job] = r
 
-    if not relevant_runs:
-        state["latest_run_id"] = None
-        state["latest_run_status"] = None
-        return state
+    # Pick the first FAILED job that has NOT been remediated
+    for job_name in LLM_FAILING_JOBS:
+        if job_name in REMEDIATED_JOBS:
+            continue
 
-    # Pick the latest run overall based on 'started' timestamp
-    latest_run = max(relevant_runs, key=lambda r: r.get("started", ""))
-    state["latest_run_id"] = str(latest_run.get("id"))
-    state["latest_run_status"] = latest_run.get("status", "").upper()
+        run = latest_by_job.get(job_name)
+        if run and run.get("status", "").upper() == "FAILED":
+            state["latest_job_name"] = job_name
+            state["latest_run_id"] = str(run["id"])
+            state["latest_run_status"] = "FAILED"
+            return state
 
-    # Store the job name of the latest run too
-    state["latest_job_name"] = latest_run.get("job", "UNKNOWN")
-
+    # Nothing left to remediate
+    state["latest_run_id"] = None
+    state["latest_run_status"] = None
     return state
+
 
 
 def route_on_status(state: AgentState):
@@ -305,6 +307,8 @@ def deploy_and_run_fixed_job(state: AgentState):
 
     CDE_MANAGER.createJob(job_def)
     CDE_MANAGER.runJob(new_job_name)
+
+    REMEDIATED_JOBS.add(base_job_name)
 
     summary = (
         f"New job created: {new_job_name}\n"
