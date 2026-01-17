@@ -172,7 +172,7 @@ if not table_exists:
     )
 
     df1 = df1_spec.build().drop("_seed_id")
-    df1.writeTo(targetTable).using("iceberg").create()
+    df1.writeTo(targetTable).using("iceberg").createOrReplace()
 
 spark.sql(f"DROP TABLE IF EXISTS {sourceTable} PURGE")
 df2.writeTo(sourceTable).using("iceberg").create()
@@ -414,8 +414,8 @@ def create_and_run_jobs(state: AgentState) -> AgentState:
             executorMemory="2g",
             executorCores=2,
             pythonEnvResourceName="datagen-env",
-            args=["spark_catalog.default.dynamic_incremental_target_table_large_overlap",
-                    "spark_catalog.default.dynamic_incremental_source_table_large_overlap"]
+            args=[f"spark_catalog.default.target_table_large_overlap_{job_name}",
+                    f"spark_catalog.default.source_table_large_overlap_{job_name}"]
         )
 
         CDE_MANAGER.createJob(job_def)

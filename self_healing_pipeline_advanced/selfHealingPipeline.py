@@ -321,8 +321,8 @@ def deploy_and_run_fixed_job(state: AgentState):
         executorMemory="2g",
         executorCores=2,
         pythonEnvResourceName="datagen-env",
-        args=["spark_catalog.default.dynamic_incremental_target_table_large_overlap",
-                "spark_catalog.default.dynamic_incremental_source_table_large_overlap"]
+        args=[f"spark_catalog.default.target_table_large_overlap_{job_name}",
+                f"spark_catalog.default.source_table_large_overlap_{job_name}"]
     )
 
     CDE_MANAGER.createJob(job_def)
