@@ -413,6 +413,9 @@ def create_and_run_jobs(state: AgentState) -> AgentState:
             APPLICATION_FILE_NAME=script["filename"],
             executorMemory="2g",
             executorCores=2,
+            pythonEnvResourceName="datagen-env",
+            args=["spark_catalog.default.dynamic_incremental_target_table_large_overlap",
+                    "spark_catalog.default.dynamic_incremental_source_table_large_overlap"]
         )
 
         CDE_MANAGER.createJob(job_def)
