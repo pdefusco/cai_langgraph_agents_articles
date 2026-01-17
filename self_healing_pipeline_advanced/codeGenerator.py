@@ -32,7 +32,7 @@ LLM_MODEL_ID = os.environ["LLM_MODEL_ID"]
 LLM_ENDPOINT_BASE_URL = os.environ["LLM_ENDPOINT_BASE_URL"]
 LLM_CDP_TOKEN = os.environ["LLM_CDP_TOKEN"]
 
-RESOURCE_NAME = "llm-failing-spark-scripts"
+RESOURCE_NAME = os.environ["RESOURCE_NAME"]
 JOB_PREFIX = "llm-failing-job"
 
 # =========================================================
