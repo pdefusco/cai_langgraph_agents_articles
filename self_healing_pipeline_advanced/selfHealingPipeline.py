@@ -285,6 +285,7 @@ import os
 def deploy_and_run_fixed_job(state: AgentState):
 
     base_job_name = state["latest_job_name"]
+    base_job_name_safe = base_job_name.replace("-", "_")
 
     new_resource = f"{RESOURCE_NAME}-fixed"
     new_job_name = f"{base_job_name}-fixed"
@@ -321,8 +322,8 @@ def deploy_and_run_fixed_job(state: AgentState):
         executorMemory="2g",
         executorCores=2,
         pythonEnvResourceName="datagen-env",
-            args=[f"spark_catalog.default.target_table_{job_name_safe}",
-                    f"spark_catalog.default.source_table_{job_name_safe}"]
+            args=[f"spark_catalog.default.target_table_{base_job_name_safe}",
+                    f"spark_catalog.default.source_table_{base_job_name_safe}"]
         )
     )
 

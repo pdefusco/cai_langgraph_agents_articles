@@ -405,6 +405,7 @@ def create_and_run_jobs(state: AgentState) -> AgentState:
 
     for idx, script in enumerate(state["scripts"], start=1):
         job_name = f"{JOB_PREFIX}-{idx}"
+        job_name_safe = job_name.replace("-", "_")
 
         spark_job = cdejob.CdeSparkJob(CDE_CONNECTION)
         job_def = spark_job.createJobDefinition(
@@ -414,7 +415,6 @@ def create_and_run_jobs(state: AgentState) -> AgentState:
             executorMemory="2g",
             executorCores=2,
             pythonEnvResourceName="datagen-env",
-            job_name_safe = job_name.replace("-", "_")
             args=[f"spark_catalog.default.target_table_{job_name_safe}",
                     f"spark_catalog.default.source_table_{job_name_safe}"]
         )
