@@ -36,7 +36,7 @@ WORKLOAD_PASSWORD = os.environ["WORKLOAD_PASSWORD"]
 
 JOB_NAME = os.environ["JOB_NAME"]
 RESOURCE_NAME = os.environ["RESOURCE_NAME"]
-APPLICATION_FILE_NAME = os.environ["APPLICATION_FILE_NAME"]
+#APPLICATION_FILE_NAME = os.environ["APPLICATION_FILE_NAME"]
 
 LLM_MODEL_ID = os.environ["LLM_MODEL_ID"]
 LLM_ENDPOINT_BASE_URL = os.environ["LLM_ENDPOINT_BASE_URL"]
@@ -76,7 +76,9 @@ def init_cde():
 class AgentState(TypedDict):
     latest_run_id: str | None
     latest_run_status: str | None
+    latest_job_name: str | None
 
+    application_file_name: str | None
     spark_logs: str | None
     spark_script: str | None
 
@@ -163,7 +165,9 @@ def route_on_status(state: AgentState):
 
 def download_artifacts(state: AgentState):
     run_id = state["latest_run_id"]
+    job_name = state["latest_job_name"]
 
+    # Logs
     logs = CDE_MANAGER.downloadJobRunLogs(run_id, "driver/stdout")
     state["spark_logs"] = logs or "No driver stdout logs available"
 
@@ -171,13 +175,19 @@ def download_artifacts(state: AgentState):
     print(state["spark_logs"])
     print("========== END DRIVER STDOUT LOGS ==========\n")
 
+    describe_dict = json.loads(CDE_MANAGER.describeJob(job_name))
+    application_file_name = describe_dict["spark"]["file"]
+
+    state["application_file_name"] = application_file_name
+
+    # Download script
     script = CDE_MANAGER.downloadFileFromResource(
         RESOURCE_NAME,
-        APPLICATION_FILE_NAME,
+        application_file_name,
     )
+
     state["spark_script"] = script or ""
     return state
-
 
 import difflib
 import re
@@ -251,7 +261,7 @@ import os
 
 def deploy_and_run_fixed_job(state: AgentState):
 
-    base_job_name = LLM_FAILING_JOBS[0]
+    base_job_name = state["latest_job_name"]
 
     new_resource = f"{RESOURCE_NAME}-fixed"
     new_job_name = f"{base_job_name}-fixed"
@@ -298,7 +308,7 @@ def deploy_and_run_fixed_job(state: AgentState):
     summary = (
         f"New job created: {new_job_name}\n"
         f"New resource created: {new_resource}\n"
-        f"Script uploaded: {APPLICATION_FILE_NAME}\n"
+        f"Application File: {state.get('application_file_name', 'N/A')}"
         f"Job submitted successfully."
     )
 
@@ -389,10 +399,8 @@ def ui_refresh(state: dict = None):
 
     if latest_run_id:
         try:
-            spark_logs = CDE_MANAGER.downloadJobRunLogs(str(latest_run_id), "driver/stdout") or ""
-            describeDict = CDE_MANAGER.describeJob(CDE_JOB_NAME)
-            applicationFileName = json.loads(describeDict)['spark']['file']
-            spark_script = CDE_MANAGER.downloadFileFromResource(RESOURCE_NAME, applicationFileName) or ""
+            spark_script = state.get("spark_script", "")
+            spark_logs = state.get("spark_logs", "")
 
             state["spark_script"] = spark_script
             state["spark_logs"] = spark_logs
@@ -498,7 +506,6 @@ with gr.Blocks(title="CDE Spark Job Monitor & Auto Remediator", css=css) as demo
             interactive=False
         )
 
-
     # Second row: code, logs, analysis
     with gr.Row():
         script_box = gr.Code(
@@ -559,5 +566,5 @@ if __name__ == "__main__":
         share=False,
         show_error=True,
         server_name="127.0.0.1",
-        server_port=8080),
+        server_port=8080,
     )
