@@ -9,10 +9,10 @@ from langchain.chat_models import ChatOpenAI
 # Configuration
 # =========================================================
 
-ON_PREM_AGENT_URL = "https://onprem-agent.company.com/invoke"
+ON_PREM_AGENT_URL = os.getenv("ON_PREM_AGENT_URL")
 
 CLOUD_LLM = ChatOpenAI(
-    model="nemotron-cloud",
+    model=os.getenv("CLOUD_MODEL_ID"),
     api_key=os.getenv("CLOUD_NEMOTRON_KEY"),
     base_url=os.getenv("CLOUD_NEMOTRON_ENDPOINT"),
 )

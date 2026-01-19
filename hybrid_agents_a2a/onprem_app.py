@@ -1,38 +1,52 @@
+import os
 from fastapi import FastAPI
 from langchain.chat_models import ChatOpenAI
-from pyhive import hive
-import os
+from pyspark.sql import SparkSession
 
 # =========================================================
-# App
+# FastAPI app
 # =========================================================
 
 app = FastAPI()
 
 # =========================================================
-# On-Prem Nemotron
+# On-prem Nemotron (OpenAI-compatible)
 # =========================================================
 
 LLM = ChatOpenAI(
-    model="nemotron-onprem",
+    model=os.getenv("ON_PREM_MODEL_ID"),
     api_key=os.getenv("ON_PREM_NEMOTRON_KEY"),
     base_url=os.getenv("ON_PREM_NEMOTRON_ENDPOINT"),
 )
 
 # =========================================================
-# Hive Query Helper
+# Spark Session (shared, created once)
 # =========================================================
 
-def run_hive_query(sql: str) -> str:
-    conn = hive.Connection(
-        host=os.getenv("HIVE_HOST"),
-        port=int(os.getenv("HIVE_PORT", "10000")),
-        username=os.getenv("HIVE_USER", "hive"),
-    )
-    cursor = conn.cursor()
-    cursor.execute(sql)
-    rows = cursor.fetchall()
-    return str(rows)
+spark = (
+    SparkSession.builder
+    .appName("on-prem-text-to-sql-agent")
+    .enableHiveSupport()   # IMPORTANT for external / metastore tables
+    .getOrCreate()
+)
+
+# Optional: limit runaway queries during demos
+spark.conf.set("spark.sql.shuffle.partitions", "10")
+
+# =========================================================
+# Spark SQL Executor
+# =========================================================
+
+def run_spark_sql(sql: str) -> str:
+    """
+    Execute Spark SQL and return a small, safe string result.
+    """
+    df = spark.sql(sql)
+
+    # Limit output size defensively
+    rows = df.limit(20).toPandas()
+
+    return rows.to_string(index=False)
 
 # =========================================================
 # Agent Endpoint
@@ -45,23 +59,44 @@ async def invoke(payload: dict):
     prompt = f"""
 You are a Text-to-SQL agent.
 
-Convert the user question into a Hive SQL query.
-Use ONLY this table:
+Your task:
+- Convert the user's question into a Spark SQL query.
+- The query will be executed using Spark SQL.
+- Use ONLY the table described below.
+- Do NOT hallucinate columns or tables.
+- Do NOT include explanations.
 
-sales_table(
-    date STRING,
-    region STRING,
-    revenue DOUBLE
-)
+Table:
+DataLakeTable
 
-Question:
+Schema:
+- age FLOAT
+- credit_card_balance FLOAT
+- bank_account_balance FLOAT
+- mortgage_balance FLOAT
+- sec_bank_account_balance FLOAT
+- savings_account_balance FLOAT
+- sec_savings_account_balance FLOAT
+- total_est_nworth FLOAT
+- primary_loan_balance FLOAT
+- secondary_loan_balance FLOAT
+- uni_loan_balance FLOAT
+- longitude FLOAT
+- latitude FLOAT
+- transaction_amount FLOAT
+- fraud_trx INT   -- 1 = fraud, 0 = non-fraud
+
+Rules:
+- Use valid Spark SQL
+- Return ONLY the SQL statement
+
+User question:
 {question}
-
-Return ONLY valid Hive SQL.
 """
 
     sql = LLM.invoke(prompt).content.strip()
-    result = run_hive_query(sql)
+
+    result = run_spark_sql(sql)
 
     return {
         "sql": sql,
