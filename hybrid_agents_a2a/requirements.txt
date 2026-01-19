@@ -1,0 +1,12 @@
+gradio>=4.0.0
+langgraph>=0.0.40
+langchain>=0.1.0
+openai>=1.0.0
+fastapi>=0.110.0
+uvicorn>=0.29.0
+requests>=2.31.0
+pyhive[hive]>=0.7.0
+thrift>=0.16.0
+thrift-sasl>=0.4.3
+pure-sasl>=0.6.2
+typing_extensions>=4.7.0
