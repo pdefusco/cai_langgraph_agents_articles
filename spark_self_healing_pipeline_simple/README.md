@@ -143,7 +143,7 @@ Resource Profile: 2 vCPU / 8 iGB Mem / 0 GPU
 First, install the requirements by opening the Terminal and running this command:
 
 ```
-pip3 install -r spark_self_healing_pipeline/requirements.txt
+pip3 install -r spark_self_healing_pipeline_simple/requirements.txt
 ```
 
 #### 5. Deploy the Gradio LangGraph MAS as a CAI Application
@@ -155,7 +155,7 @@ Name: Continuous Spark Monitoring Agents
 Kernel: PBJ Workbench	Python 3.10	Standard 2025.09
 Spark Runtime Addon: Spark 3.5.1
 Resource Profile: 2 vCPU / 8 iGB Mem / 0 GPU
-Script: spark_self_healing_pipeline/selfHealingPipeline.py
+Script: spark_self_healing_pipeline_simple/selfHealingPipeline.py
 ```
 
 ![alt text](img/shp_app_settings.png)
