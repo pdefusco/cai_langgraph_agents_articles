@@ -133,6 +133,8 @@ cde job run \
   --name failing-pipeline
 ```
 
+![alt text](img/failed_run.png)
+
 #### 4. Launch a CAI Session and Install Requirements for the MAS
 
 Launch your first CAI Session with PBJ Runtime. You won't need a lot of resources:
