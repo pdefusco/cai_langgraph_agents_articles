@@ -128,6 +128,9 @@ cde job create \
   --conf spark.dynamicAllocation.minExecutors=1 \
   --conf spark.dynamicAllocation.maxExecutors=20 \
   --conf spark.sql.adaptive.enabled=False
+
+cde job run \
+  --name failing-pipeline
 ```
 
 #### 4. Launch a CAI Session and Install Requirements for the MAS
