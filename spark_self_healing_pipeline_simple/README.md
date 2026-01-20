@@ -88,8 +88,7 @@ Next, using the CDE CLI, run the following commands to set up all dependencies r
 
 ```
 cde resource create \
-  --name failing-pipeline \
-  --type python-env
+  --name failing-pipeline
 
 cde resource create \
   --name datagen-env \
