@@ -100,7 +100,8 @@ cde resource upload \
 
 cde resource upload \
   --name failing-pipeline \
-  --local-path sparkApp.py
+  --local-path sparkApp.py \
+  --local-path datagen.py
 ```
 
 Wait for the python environment build to complete. Then create the Incremental Read job.
@@ -109,14 +110,16 @@ Wait for the python environment build to complete. Then create the Incremental R
 
 ![alt text](img/env-build-complete.png)
 
+Create and run the datagen job.
+
 ```
 cde job delete \
-  --name failing-pipeline
+  --name datagen
 
 cde job create \
-  --name failing-pipeline \
+  --name datagen \
   --type spark \
-  --application-file sparkApp.py \
+  --application-file datagen.py \
   --python-env-resource-name datagen-env \
   --mount-1-resource failing-pipeline \
   --executor-cores 4 \
@@ -130,7 +133,32 @@ cde job create \
   --conf spark.sql.adaptive.enabled=False
 
 cde job run \
-  --name failing-pipeline
+  --name datagen
+```
+
+Once the datagen job has succeeded, create and run the failing-pipeline job.
+
+```
+cde job delete \
+  --name failing-job
+
+cde job create \
+  --name failing-job \
+  --type spark \
+  --application-file sparkApp.py \
+  --python-env-resource-name datagen-env \
+  --mount-1-resource failing-pipeline \
+  --executor-cores 4 \
+  --executor-memory "8g" \
+  --driver-cores 4 \
+  --driver-memory "4g" \
+  --arg spark_catalog.default.dynamic_incremental_target_table_large_overlap \
+  --arg spark_catalog.default.dynamic_incremental_source_table_large_overlap \
+  --conf spark.dynamicAllocation.minExecutors=1 \
+  --conf spark.dynamicAllocation.maxExecutors=20
+
+cde job run \
+  --name failing-job
 ```
 
 Visit the CDE Job Runs UI, wait for the job run finish running and confirm it fails. Open the logs tab and investigate the cause of failure.
