@@ -409,7 +409,6 @@ def agent_loop():
 # =========================================================
 
 def ui_refresh(state: dict = None):
-
     if CDE_MANAGER is None:
         return (
             "Initializing CDE connection...",
@@ -421,38 +420,43 @@ def ui_refresh(state: dict = None):
             "",
             ""
         )
+
     state = state or {}
     state = fetch_latest_run(state)
     latest_run_id = state.get("latest_run_id")
     latest_run_status = state.get("latest_run_status", "UNKNOWN")
 
-    llm_analysis = LAST_LLM_OUTPUT.get("analysis", "")
-    improved_script = LAST_LLM_OUTPUT.get("improved_script", "")
-    code_diff = LAST_LLM_OUTPUT.get("code_diff", "")
-
+    # Initialize display variables
     spark_script = ""
     spark_logs = ""
+    llm_analysis = ""
+    improved_script = ""
+    code_diff = ""
 
     if latest_run_id:
         try:
+            # Fetch logs and script
             spark_logs = CDE_MANAGER.downloadJobRunLogs(str(latest_run_id), "driver/stdout") or ""
             spark_script = CDE_MANAGER.downloadFileFromResource(RESOURCE_NAME, APPLICATION_FILE_NAME) or ""
 
-            #state["spark_script"] = spark_script
-            #state["spark_logs"] = spark_logs
+            # Store in state for LLM analysis
+            state["spark_script"] = spark_script
+            state["spark_logs"] = spark_logs
+            state.setdefault("retried", False)
 
-            if latest_run_status == "FAILED" and not state.get("retried", False):
+            # Run LLM analysis if failed and not retried
+            if latest_run_status == "FAILED" and not state.get("retried"):
                 state = llm_analyze_and_fix(state)
 
-            # Update local variables from state / LAST_LLM_OUTPUT
-            llm_analysis = LAST_LLM_OUTPUT.get("analysis", "")
-            improved_script = LAST_LLM_OUTPUT.get("improved_script", "")
-            code_diff = LAST_LLM_OUTPUT.get("code_diff", "")
-
+            # Update local variables from state after analysis
+            llm_analysis = state.get("llm_analysis", "")
+            improved_script = state.get("improved_script", "")
+            code_diff = state.get("code_diff", "")
 
         except Exception as e:
             llm_analysis = f"Failed to fetch logs or script: {e}"
 
+    # Job status text
     status_text = (
         f"Job Name: {JOB_NAME}\n"
         f"Latest Run ID: {latest_run_id or 'N/A'}\n"
@@ -462,7 +466,6 @@ def ui_refresh(state: dict = None):
     )
 
     remediation_summary_text = LAST_REMEDIATION_INFO.get("summary", "No remediation info yet.")
-
     updated_job_text = (
         f"Job Name: {LAST_REMEDIATION_INFO.get('job_name', 'N/A')}\n"
         f"Resource Name: {LAST_REMEDIATION_INFO.get('resource_name', 'N/A')}\n"
@@ -479,7 +482,6 @@ def ui_refresh(state: dict = None):
         improved_script,
         code_diff
     )
-
 
 # =========================================================
 # STARTUP
