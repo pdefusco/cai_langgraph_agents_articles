@@ -260,12 +260,13 @@ def deploy_and_run_fixed_job(state: AgentState):
     new_resource = f"{RESOURCE_NAME}-fixed"
     new_job_name = f"{JOB_NAME}-fixed"
 
+    global LAST_REMEDIATION_INFO
+
     if job_has_any_runs(new_job_name):
         summary = (
             f"Fixed job '{new_job_name}' already has at least one run in CDE.\n"
             f"No action taken (idempotent remediation)."
         )
-        global LAST_REMEDIATION_INFO
 
         state["remediation_summary"] = summary
         state["new_job_name"] = new_job_name
