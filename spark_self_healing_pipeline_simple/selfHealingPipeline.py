@@ -50,6 +50,13 @@ LAST_REMEDIATION_INFO = {
     "resource_name": "",
 }
 
+LAST_LLM_OUTPUT = {
+    "analysis": "",
+    "improved_script": "",
+    "code_diff": "",
+}
+
+
 # =========================================================
 # GLOBAL CDE OBJECTS
 # =========================================================
@@ -250,6 +257,13 @@ def llm_analyze_and_fix(state: AgentState):
     state["improved_script"] = fixed_script
     state["code_diff"] = "\n".join(diff)
     state["retried"] = True
+
+    global LAST_LLM_OUTPUT
+    LAST_LLM_OUTPUT = {
+        "analysis": state["llm_analysis"],
+        "improved_script": state["improved_script"],
+        "code_diff": state["code_diff"],
+    }
     return state
 
 
@@ -412,26 +426,25 @@ def ui_refresh(state: dict = None):
     latest_run_id = state.get("latest_run_id")
     latest_run_status = state.get("latest_run_status", "UNKNOWN")
 
+    llm_analysis = LAST_LLM_OUTPUT.get("analysis", "")
+    improved_script = LAST_LLM_OUTPUT.get("improved_script", "")
+    code_diff = LAST_LLM_OUTPUT.get("code_diff", "")
+
+
     spark_script = ""
     spark_logs = ""
-    llm_analysis = ""
-    improved_script = ""
-    code_diff = ""
 
     if latest_run_id:
         try:
             spark_logs = CDE_MANAGER.downloadJobRunLogs(str(latest_run_id), "driver/stdout") or ""
             spark_script = CDE_MANAGER.downloadFileFromResource(RESOURCE_NAME, APPLICATION_FILE_NAME) or ""
 
-            state["spark_script"] = spark_script
-            state["spark_logs"] = spark_logs
+            #state["spark_script"] = spark_script
+            #state["spark_logs"] = spark_logs
 
             #if not state.get("retried", False) and latest_run_status == "FAILED":
         #        state = llm_analyze_and_fix(state)
 
-            llm_analysis = state.get("llm_analysis", "")
-            improved_script = state.get("improved_script", "")
-            code_diff = state.get("code_diff", "")
         except Exception as e:
             llm_analysis = f"Failed to fetch logs or script: {e}"
 

@@ -205,7 +205,7 @@ Open the Application and wait a few seconds until the UI is populated. This UI p
 
 ![alt text](img/final-ui-view.png)
 
-Open the Application History logs to follow along the LangGraph execution.
+Open the Application History logs to follow along the LangGraph execution.  
 
 ![alt text](img/app-execution-0.png)
 
