@@ -290,6 +290,15 @@ def llm_analyze_and_fix(state: AgentState):
     text = response.content
     repair_decision = parse_repair_decision(text)
 
+    def invalid_reference_count(decision: dict) -> int:
+        return len(decision.get("invalid", []))
+
+    if invalid_reference_count(repair_decision) != 1:
+        raise ValueError(
+            "Binary predicate repair must select exactly one invalid reference"
+        )
+
+
     # Split analysis and script
     if "=== FIXED SCRIPT ===" in text:
         analysis, fixed_script = text.split("=== FIXED SCRIPT ===", 1)
