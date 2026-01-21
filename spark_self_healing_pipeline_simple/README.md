@@ -140,10 +140,10 @@ Once the datagen job has succeeded, create and run the failing-pipeline job.
 
 ```
 cde job delete \
-  --name failing-job
+  --name failing-merge-1
 
 cde job create \
-  --name failing-job \
+  --name failing-merge-1 \
   --type spark \
   --application-file sparkApp.py \
   --python-env-resource-name datagen-env \
@@ -158,7 +158,7 @@ cde job create \
   --conf spark.dynamicAllocation.maxExecutors=20
 
 cde job run \
-  --name failing-job
+  --name failing-merge-1
 ```
 
 Visit the CDE Job Runs UI, wait for the job run finish running and confirm it fails. Open the logs tab and investigate the cause of failure.
