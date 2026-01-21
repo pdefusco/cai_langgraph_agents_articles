@@ -214,6 +214,7 @@ def llm_analyze_and_fix(state: AgentState):
                 "11. Do not add any markdown ticks.\n"
                 "12. Assume the spark submit will be the same, there is no modification to any of its options and script arguments.\n"
                 "13. Single line comments showing changes in the code are ok, as long as each line is properly formatted starting with a #"
+                "14. If you find an issue with a join or merge key, the key does not have to be the same key in both tables, it's ok to merge or join on different columns by picking the most likely columns to have the same values e.g. 'source_table_id' can join with 'target_table_id'.\n"
                 "Respond EXACTLY in this format:\n"
                 "=== ANALYSIS ===\n"
                 "<analysis>\n\n"
