@@ -1,4 +1,4 @@
-# How to Implement a CDE Spark Self Healing Pipeline in CAI with LangGraph, Nvidia Nemotron 49B, Cloudera AI Inference Service
+# How to Implement a CDE Spark Self Healing Pipeline in CAI with LangGraph, Nvidia Nemotron 49B, and Cloudera AI Inference Service
 
 ![alt text](img/spark_self_healing_pipeline_simple_sol_arch.png)
 
@@ -207,7 +207,7 @@ At the top, the UI provides information about the original and fixed job includi
 
 Towards the middle, the original application code is provided on the left and the remediated application code is shown on the right. Notice the fix is applied at lines 97-99.
 
-Finally, at the bottom, the Driver stdout logs from the original application are shown in the box in the left. In the center, the LLM reasoning steps are shown. Finally, on the right, a diff between the two application scripts is presented. 
+Finally, at the bottom, the Driver stdout logs from the original application are shown in the box in the left. In the center, the LLM reasoning steps are shown. Finally, on the right, a diff between the two application scripts is presented.
 
 ![alt text](img/app-ui-1.png)
 
