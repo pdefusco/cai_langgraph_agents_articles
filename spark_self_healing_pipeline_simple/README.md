@@ -96,7 +96,7 @@ cde resource create \
 
 cde resource upload \
   --name datagen-env \
-  --local-path requirements.txt
+  --local-path cde_dependencies/requirements.txt
 
 cde resource upload \
   --name failing-pipeline \
@@ -133,7 +133,11 @@ cde job run \
   --name failing-pipeline
 ```
 
+Visit the CDE Job Runs UI, wait for the job run finish running and confirm it fails. Open the logs tab and investigate the cause of failure.
+
 ![alt text](img/failed_run.png)
+
+![alt text](img/failed_logs.png)
 
 #### 4. Launch a CAI Session and Install Requirements for the MAS
 
