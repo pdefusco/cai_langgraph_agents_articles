@@ -192,6 +192,49 @@ def download_artifacts(state: AgentState):
     state["spark_script"] = script or ""
     return state
 
+import re
+
+def parse_repair_decision(llm_text: str) -> dict:
+    """
+    Extracts the REPAIR DECISION section from the LLM output.
+    Returns a dict with keys:
+      - invalid
+      - replacement
+      - do_not_modify
+    """
+    decision = {
+        "invalid": [],
+        "replacement": [],
+        "do_not_modify": [],
+    }
+
+    if "=== REPAIR DECISION ===" not in llm_text:
+        return decision
+
+    section = llm_text.split("=== REPAIR DECISION ===", 1)[1]
+    section = section.split("=== FIXED SCRIPT ===", 1)[0]
+
+    for line in section.splitlines():
+        line = line.strip()
+        if line.startswith("- Invalid reference"):
+            decision["invalid"] = re.findall(r"\b\w+\.\w+\b", line)
+        elif line.startswith("- Replacement column"):
+            decision["replacement"] = re.findall(r"\b\w+\.\w+\b", line)
+        elif line.startswith("- References that must NOT be modified"):
+            decision["do_not_modify"] = re.findall(r"\b\w+\.\w+\b", line)
+
+    return decision
+
+
+def violates_repair_decision(original: str, fixed: str, decision: dict) -> bool:
+    """
+    Returns True if the fixed script violates the LLM's own repair decision.
+    """
+    for ref in decision.get("do_not_modify", []):
+        if ref in original and ref not in fixed:
+            return True
+    return False
+
 
 import difflib
 import re
@@ -212,7 +255,7 @@ def llm_analyze_and_fix(state: AgentState):
                 "6c. Only modify statements, expressions, or identifiers directly implicated in the failure.\n"
                 "6d. If multiple fixes are possible, prefer the one that changes the fewest lines and identifiers.\n"
                 "7. Do not include logic to prevent the original app from completing by stopping execution early.\n"
-                "8. If you find an issue with a join or merge key, update the code to include logic to read the schemas of both source and target tables and infer which columns or statements are invalid.\n"
+                "8. If you find an issue with a join or merge key, inspect both table schemas and determine which specific references are invalid.\n"
                 "8a. Explicitly distinguish between invalid references and valid references.\n"
                 "8b. Only update code elements you have identified as invalid.\n"
                 "8c. Do not modify valid references unless they also prevent execution.\n"
@@ -222,10 +265,15 @@ def llm_analyze_and_fix(state: AgentState):
                 "12. Assume the spark submit remains unchanged.\n"
                 "13. Single line comments showing changes are allowed, starting with #\n"
                 "14. If a join or merge condition contains invalid references, update only the invalid side unless both sides are invalid.\n"
-                "15. Before producing the final script, verify that no previously valid column references were changed.\n"
+                "15. Before producing the final script, verify that no previously valid column references were changed.\n\n"
+
                 "Respond EXACTLY in this format:\n"
                 "=== ANALYSIS ===\n"
                 "<analysis>\n\n"
+                "=== REPAIR DECISION ===\n"
+                "- Invalid reference(s): <table_alias.column>\n"
+                "- Replacement column(s): <table_alias.column>\n"
+                "- References that must NOT be modified: <table_alias.column, ...>\n\n"
                 "=== FIXED SCRIPT ===\n"
                 "<full python script, no placeholders, no backticks>"
             )
@@ -240,6 +288,7 @@ def llm_analyze_and_fix(state: AgentState):
 
     response = llm.invoke(prompt)
     text = response.content
+    repair_decision = parse_repair_decision(text)
 
     # Split analysis and script
     if "=== FIXED SCRIPT ===" in text:
@@ -261,6 +310,16 @@ def llm_analyze_and_fix(state: AgentState):
             continue  # skip placeholder SQL
         lines.append(line)
     fixed_script = "\n".join(lines)
+
+    # Enforce LLM repair decision (minimality + asymmetry guard)
+    if violates_repair_decision(
+        state["spark_script"],
+        fixed_script,
+        repair_decision
+    ):
+        raise ValueError(
+            "LLM violated its own REPAIR DECISION (modified forbidden references)"
+        )
 
     # Generate diff
     diff = difflib.unified_diff(
