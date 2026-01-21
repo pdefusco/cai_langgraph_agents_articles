@@ -291,12 +291,33 @@ def llm_analyze_and_fix(state: AgentState):
         text = response.content
         repair_decision = parse_repair_decision(text)
 
-        def invalid_reference_count(decision: dict) -> int:
-            return len(decision.get("invalid", []))
-
-        if invalid_reference_count(repair_decision) != 1:
+        # allow 1 or 2 invalid references (MERGE predicates)
+        if invalid_reference_count(repair_decision) not in (1, 2):
             raise ValueError(
-                "Binary predicate repair must select exactly one invalid reference"
+                f"Binary predicate repair must select 1 or 2 invalid references; got {invalid_reference_count(repair_decision)}"
+            )
+
+        # Split analysis and script
+        if "=== FIXED SCRIPT ===" in text:
+            analysis, fixed_script = text.split("=== FIXED SCRIPT ===", 1)
+        else:
+            analysis = "No analysis returned."
+            fixed_script = state["spark_script"]
+
+        fixed_script = fixed_script.replace("```python", "").replace("```", "").strip()
+        lines = []
+        for line in fixed_script.splitlines():
+            if "# ... " in line or "# **FIX**" in line:
+                continue
+            if "spark.sql(f\"...\"" in line:
+                continue
+            lines.append(line)
+        fixed_script = "\n".join(lines)
+
+        # enforce repair decision
+        if violates_repair_decision(state["spark_script"], fixed_script, repair_decision):
+            raise ValueError(
+                "LLM violated its own REPAIR DECISION (modified forbidden references)"
             )
 
     except Exception as e:
