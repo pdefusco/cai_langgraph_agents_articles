@@ -195,12 +195,33 @@ Script: spark_self_healing_pipeline_simple/selfHealingPipeline.py
 
 ![alt text](img/shp_app_settings.png)
 
+Validate the applicaton has deployed successfully.
+
+![alt text](img/app-deployed-ok.png)
+
 #### 7. Interact with the Agent App
 
 Open the Application and wait a few seconds until the UI is populated. This UI presents you with the Spark application code and related Driver stdout logs, an explanation of the issues found by the LLM (Nemotron), the updated version of the Spark application code, and confirmation of the new CDE Job and dependencies having been created and executed.
 
 ![alt text](img/final-ui-view.png)
 
+Open the Application History logs to follow along the LangGraph execution.
+
+![alt text](img/app-execution-0.png)
+
+![alt text](img/app-execution-1.png)
+
+![alt text](img/app-execution-2.png)
+
+Navigate to the CDE UI, validate the new Spark Job definition, its dependencies, and a follow the new run's progress.
+
+![alt text](img/cde-new-res-1.png)
+
+![alt text](img/cde-new-res-2.png)
+
+![alt text](img/cde-new-job-definition.png)
+
+![alt text](img/cde-new-run.png)
 
 ## Summary & Next Steps
 
