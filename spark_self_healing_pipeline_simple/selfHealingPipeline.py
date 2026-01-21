@@ -213,7 +213,8 @@ def parse_repair_decision(text: str) -> dict:
         rd_text = rd_match.group(1)
 
         # Find invalid references
-        invalid_match = re.search(r"Invalid reference\(s\):\s*(.*)", rd_text, re.I)
+        invalid_match = re.search(r"Invalid reference(?:\(s\))?:\s*(.*)", rd_text, re.I)
+
         if invalid_match:
             repair["invalid"] = [x.strip().replace("**", "") for x in invalid_match.group(1).split(",") if x.strip()]
 
@@ -298,8 +299,10 @@ def llm_analyze_and_fix(state: AgentState):
         text = response.content
         repair_decision = parse_repair_decision(text)
 
+        invalid_count = invalid_reference_count(repair_decision)
+
         # allow 1 or 2 invalid references (MERGE predicates)
-        if invalid_reference_count(repair_decision) not in (1, 2):
+        if invalid_count not in (0, 1, 2):
             raise ValueError(
                 f"Binary predicate repair must select 1 or 2 invalid references; got {invalid_reference_count(repair_decision)}"
             )
