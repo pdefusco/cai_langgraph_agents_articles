@@ -197,36 +197,40 @@ import re
 def invalid_reference_count(decision: dict) -> int:
     return len(decision.get("invalid", []))
 
-def parse_repair_decision(llm_text: str) -> dict:
+def parse_repair_decision(text: str) -> dict:
     """
-    Extracts the REPAIR DECISION section from the LLM output.
-    Returns a dict with keys:
-      - invalid
-      - replacement
-      - do_not_modify
+    Parses the LLM REPAIR DECISION section into a dict.
+    Handles multiple invalid references separated by commas, strips extra whitespace and markdown.
     """
-    decision = {
-        "invalid": [],
-        "replacement": [],
-        "do_not_modify": [],
-    }
+    repair = {"invalid": [], "replacement": [], "do_not_modify": []}
 
-    if "=== REPAIR DECISION ===" not in llm_text:
-        return decision
+    try:
+        # Extract REPAIR DECISION section
+        rd_match = re.search(r"=== REPAIR DECISION ===(.*?)=== FIXED SCRIPT ===", text, re.S)
+        if not rd_match:
+            return repair
 
-    section = llm_text.split("=== REPAIR DECISION ===", 1)[1]
-    section = section.split("=== FIXED SCRIPT ===", 1)[0]
+        rd_text = rd_match.group(1)
 
-    for line in section.splitlines():
-        line = line.strip()
-        if line.startswith("- Invalid reference"):
-            decision["invalid"] = re.findall(r"\b\w+\.\w+\b", line)
-        elif line.startswith("- Replacement column"):
-            decision["replacement"] = re.findall(r"\b\w+\.\w+\b", line)
-        elif line.startswith("- References that must NOT be modified"):
-            decision["do_not_modify"] = re.findall(r"\b\w+\.\w+\b", line)
+        # Find invalid references
+        invalid_match = re.search(r"Invalid reference\(s\):\s*(.*)", rd_text, re.I)
+        if invalid_match:
+            repair["invalid"] = [x.strip().replace("**", "") for x in invalid_match.group(1).split(",") if x.strip()]
 
-    return decision
+        # Find replacement columns
+        repl_match = re.search(r"Replacement column\(s\):\s*(.*)", rd_text, re.I)
+        if repl_match:
+            repair["replacement"] = [x.strip().replace("**", "") for x in repl_match.group(1).split(",") if x.strip()]
+
+        # Find references that must not be modified
+        do_not_match = re.search(r"References that must NOT be modified:\s*(.*)", rd_text, re.I)
+        if do_not_match:
+            repair["do_not_modify"] = [x.strip().replace("**", "") for x in do_not_match.group(1).split(",") if x.strip()]
+
+    except Exception as e:
+        print("Failed to parse repair decision:", e)
+
+    return repair
 
 
 def violates_repair_decision(original: str, fixed: str, decision: dict) -> bool:
@@ -314,7 +318,7 @@ def llm_analyze_and_fix(state: AgentState):
                 continue  # skip placeholders
             lines.append(line)
         fixed_script = "\n".join(lines)
-        
+
         # enforce repair decision
         if violates_repair_decision(state["spark_script"], fixed_script, repair_decision):
             raise ValueError(
