@@ -107,6 +107,21 @@ llm = ChatOpenAI(
 # GRAPH NODES
 # =========================================================
 
+def job_has_any_runs(job_name: str) -> bool:
+    """
+    Returns True if the given job_name has at least one run in CDE.
+    """
+    result = CDE_MANAGER.listJobRuns()
+    if result == -1 or not result:
+        return False
+
+    try:
+        runs = json.loads(result).get("runs", [])
+    except Exception:
+        return False
+
+    return any(r.get("job") == job_name for r in runs)
+
 import os
 import json
 
@@ -245,12 +260,30 @@ def deploy_and_run_fixed_job(state: AgentState):
     new_resource = f"{RESOURCE_NAME}-fixed"
     new_job_name = f"{JOB_NAME}-fixed"
 
+    if job_has_any_runs(new_job_name):
+        summary = (
+            f"Fixed job '{new_job_name}' already has at least one run in CDE.\n"
+            f"No action taken (idempotent remediation)."
+        )
+
+        state["remediation_summary"] = summary
+        state["new_job_name"] = new_job_name
+        state["new_resource_name"] = new_resource
+
+        global LAST_REMEDIATION_INFO
+        LAST_REMEDIATION_INFO = {
+            "summary": summary,
+            "job_name": new_job_name,
+            "resource_name": new_resource,
+        }
+
+        return state
+
     CDE_RESOURCE = cderesource.CdeFilesResource(new_resource)
     cdeFilesResourceDefinition = CDE_RESOURCE.createResourceDefinition()
 
     CDE_MANAGER.createResource(cdeFilesResourceDefinition)
 
-    # ✅ WRITE SCRIPT TO LOCAL FILE FIRST
     with tempfile.NamedTemporaryFile(
         mode="w",
         suffix=".py",
@@ -262,7 +295,6 @@ def deploy_and_run_fixed_job(state: AgentState):
     local_dir = os.path.dirname(local_path)
     local_file = os.path.basename(local_path)
 
-    # ✅ NOW upload using cdepy expectations
     CDE_MANAGER.uploadFileToResource(
         new_resource,
         local_dir,
@@ -295,7 +327,6 @@ def deploy_and_run_fixed_job(state: AgentState):
     state["new_job_name"] = new_job_name
     state["new_resource_name"] = new_resource
 
-    # ✅ GLOBAL CACHE FOR UI
     global LAST_REMEDIATION_INFO
     LAST_REMEDIATION_INFO = {
         "summary": summary,
