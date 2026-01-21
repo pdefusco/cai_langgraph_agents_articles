@@ -286,18 +286,25 @@ def llm_analyze_and_fix(state: AgentState):
         ),
     ]
 
-    response = llm.invoke(prompt)
-    text = response.content
-    repair_decision = parse_repair_decision(text)
+    try:
+        response = llm.invoke(prompt)
+        text = response.content
+        repair_decision = parse_repair_decision(text)
 
-    def invalid_reference_count(decision: dict) -> int:
-        return len(decision.get("invalid", []))
+        def invalid_reference_count(decision: dict) -> int:
+            return len(decision.get("invalid", []))
 
-    if invalid_reference_count(repair_decision) != 1:
-        raise ValueError(
-            "Binary predicate repair must select exactly one invalid reference"
-        )
+        if invalid_reference_count(repair_decision) != 1:
+            raise ValueError(
+                "Binary predicate repair must select exactly one invalid reference"
+            )
 
+    except Exception as e:
+        state["llm_analysis"] = f"LLM repair failed: {e}"
+        state["improved_script"] = state["spark_script"]  # fallback
+        state["code_diff"] = ""
+        state["retried"] = True
+        return state
 
     # Split analysis and script
     if "=== FIXED SCRIPT ===" in text:
