@@ -395,6 +395,18 @@ def agent_loop():
 # =========================================================
 
 def ui_refresh(state: dict = None):
+
+    if CDE_MANAGER is None:
+        return (
+            "Initializing CDE connection...",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+        )
     state = state or {}
     state = fetch_latest_run(state)
     latest_run_id = state.get("latest_run_id")
@@ -414,8 +426,8 @@ def ui_refresh(state: dict = None):
             state["spark_script"] = spark_script
             state["spark_logs"] = spark_logs
 
-            if not state.get("retried", False) and latest_run_status == "FAILED":
-                state = llm_analyze_and_fix(state)
+            #if not state.get("retried", False) and latest_run_status == "FAILED":
+        #        state = llm_analyze_and_fix(state)
 
             llm_analysis = state.get("llm_analysis", "")
             improved_script = state.get("improved_script", "")

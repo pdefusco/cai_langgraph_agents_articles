@@ -223,6 +223,8 @@ Navigate to the CDE UI, validate the new Spark Job definition, its dependencies,
 
 ![alt text](img/cde-new-run.png)
 
+![alt text](img/failing-pipeline-fixed.png)
+
 ## Summary & Next Steps
 
 In this tutorial, you implemented a MultiAgent System to monitor the status of a Spark application in Cloudera Data Engineering (CDE), have an LLM analyze the code and related logs, create a new version of the application code, and recreate and run the new code in CDE. We call this a "Self Healing Pipeline".
