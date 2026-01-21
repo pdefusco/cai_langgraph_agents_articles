@@ -201,9 +201,17 @@ Validate the applicaton has deployed successfully.
 
 #### 7. Interact with the Agent App
 
-Open the Application and wait a few seconds until the UI is populated. This UI presents you with the Spark application code and related Driver stdout logs, an explanation of the issues found by the LLM (Nemotron), the updated version of the Spark application code, and confirmation of the new CDE Job and dependencies having been created and executed.
+Open the Application and wait a few seconds until the UI is populated.
 
-![alt text](img/final-ui-view.png)
+At the top, the UI provides information about the original and fixed job including name, dependencies, and confirmation of the new run with the fixed code.
+
+Towards the middle, the original application code is provided on the left and the remediated application code is shown on the right. Notice the fix is applied at lines 97-99.
+
+Finally, at the bottom, the Driver stdout logs from the original application are shown in the box in the left. In the center, the LLM reasoning steps are shown. Finally, on the right, a diff between the two application scripts is presented. 
+
+![alt text](img/app-ui-1.png)
+
+![alt text](img/app-ui-2.png)
 
 Open the Application History logs to follow along the LangGraph execution.  
 
