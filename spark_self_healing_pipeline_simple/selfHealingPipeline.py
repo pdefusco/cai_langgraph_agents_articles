@@ -194,6 +194,9 @@ def download_artifacts(state: AgentState):
 
 import re
 
+def invalid_reference_count(decision: dict) -> int:
+    return len(decision.get("invalid", []))
+
 def parse_repair_decision(llm_text: str) -> dict:
     """
     Extracts the REPAIR DECISION section from the LLM output.
@@ -308,12 +311,10 @@ def llm_analyze_and_fix(state: AgentState):
         lines = []
         for line in fixed_script.splitlines():
             if "# ... " in line or "# **FIX**" in line:
-                continue
-            if "spark.sql(f\"...\"" in line:
-                continue
+                continue  # skip placeholders
             lines.append(line)
         fixed_script = "\n".join(lines)
-
+        
         # enforce repair decision
         if violates_repair_decision(state["spark_script"], fixed_script, repair_decision):
             raise ValueError(
@@ -326,6 +327,7 @@ def llm_analyze_and_fix(state: AgentState):
         state["code_diff"] = ""
         state["retried"] = True
         return state
+
 
     # Split analysis and script
     if "=== FIXED SCRIPT ===" in text:
