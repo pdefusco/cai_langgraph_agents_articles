@@ -155,7 +155,33 @@ First, install the requirements by opening the Terminal and running this command
 pip3 install -r spark_self_healing_pipeline_simple/requirements.txt
 ```
 
-#### 5. Deploy the Gradio LangGraph MAS as a CAI Application
+#### 5. Set Project Environment Variables
+
+The LangGraph application will rely on a few environment variables to connect to CDE and the LLM endpoint. To set these, open the "Project Settings" -> "Advanced" tabs and set the following variables:
+
+```
+JOBS_API_URL: Obtain from the CDE UI
+WORKLOAD_USER: Your CDP Username
+WORKLOAD_PASSWORD: Your CDP User Password
+
+JOB_NAME: failing-pipeline
+RESOURCE_NAME: failing-pipeline
+APPLICATION_FILE_NAME: sparkApp.py
+
+LLM_MODEL_ID: Obtain from the Model Endpoint UI in the AI Inference Service
+LLM_ENDPOINT_BASE_URL: Obtain from the Model Endpoint UI in the AI Inference Service
+LLM_CDP_TOKEN: Obtain from the Model Endpoint UI in the AI Inference Service
+```
+
+![alt text](img/failed_logs.png)
+
+![alt text](img/inf-service-ui.png)
+
+Your environment variables tab should look something like this:
+
+![alt text](img/env-vars.png)
+
+#### 6. Deploy the Gradio LangGraph MAS as a CAI Application
 
 Navigate to Applications and launch the Gradio LangGraph App with the following settings.
 
@@ -169,7 +195,7 @@ Script: spark_self_healing_pipeline_simple/selfHealingPipeline.py
 
 ![alt text](img/shp_app_settings.png)
 
-#### 6. Interact with the Agent App
+#### 7. Interact with the Agent App
 
 Open the Application and wait a few seconds until the UI is populated. This UI presents you with the Spark application code and related Driver stdout logs, an explanation of the issues found by the LLM (Nemotron), the updated version of the Spark application code, and confirmation of the new CDE Job and dependencies having been created and executed.
 
