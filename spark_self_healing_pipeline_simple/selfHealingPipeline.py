@@ -430,7 +430,6 @@ def ui_refresh(state: dict = None):
     improved_script = LAST_LLM_OUTPUT.get("improved_script", "")
     code_diff = LAST_LLM_OUTPUT.get("code_diff", "")
 
-
     spark_script = ""
     spark_logs = ""
 
@@ -442,8 +441,14 @@ def ui_refresh(state: dict = None):
             #state["spark_script"] = spark_script
             #state["spark_logs"] = spark_logs
 
-            #if not state.get("retried", False) and latest_run_status == "FAILED":
-        #        state = llm_analyze_and_fix(state)
+            if latest_run_status == "FAILED" and not state.get("retried", False):
+                state = llm_analyze_and_fix(state)
+
+            # Update local variables from state / LAST_LLM_OUTPUT
+            llm_analysis = LAST_LLM_OUTPUT.get("analysis", "")
+            improved_script = LAST_LLM_OUTPUT.get("improved_script", "")
+            code_diff = LAST_LLM_OUTPUT.get("code_diff", "")
+
 
         except Exception as e:
             llm_analysis = f"Failed to fetch logs or script: {e}"
