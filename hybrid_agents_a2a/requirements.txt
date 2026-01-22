@@ -13,3 +13,4 @@ PyArrow
 jmespath
 dbldatagen
 faker
+langchain-openai>=0.1.0
