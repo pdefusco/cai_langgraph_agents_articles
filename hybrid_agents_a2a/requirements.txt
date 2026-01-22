@@ -13,3 +13,4 @@ typing_extensions>=4.7.0
 PyArrow
 jmespath
 dbldatagen
+faker
