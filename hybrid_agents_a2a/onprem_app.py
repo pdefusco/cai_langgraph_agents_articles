@@ -31,8 +31,8 @@ spark = (
 
 # Optional: limit runaway queries during demos
 #spark.conf.set("spark.sql.shuffle.partitions", "10")
-spark.conf.set("spark.executor.cores", 4)
-spark.conf.set("spark.executor.memory", "8g")
+#spark.conf.set("spark.executor.cores", 4)
+#spark.conf.set("spark.executor.memory", "8g")
 
 
 # =========================================================
