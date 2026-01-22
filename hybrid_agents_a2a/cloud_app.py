@@ -13,8 +13,8 @@ ON_PREM_AGENT_URL = os.getenv("ON_PREM_AGENT_URL")
 
 CLOUD_LLM = ChatOpenAI(
     model=os.getenv("CLOUD_MODEL_ID"),
-    api_key=os.getenv("CLOUD_NEMOTRON_KEY"),
-    base_url=os.getenv("CLOUD_NEMOTRON_ENDPOINT"),
+    api_key=os.getenv("CLOUD_MODEL_KEY"),
+    base_url=os.getenv("CLOUD_MODEL_ENDPOINT"),
 )
 
 # =========================================================

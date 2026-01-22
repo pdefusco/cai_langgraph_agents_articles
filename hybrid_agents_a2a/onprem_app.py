@@ -15,8 +15,8 @@ app = FastAPI()
 
 LLM = ChatOpenAI(
     model=os.getenv("ON_PREM_MODEL_ID"),
-    api_key=os.getenv("ON_PREM_NEMOTRON_KEY"),
-    base_url=os.getenv("ON_PREM_NEMOTRON_ENDPOINT"),
+    api_key=os.getenv("ON_PREM_MODEL_KEY"),
+    base_url=os.getenv("ON_PREM_MODEL_ENDPOINT"),
 )
 
 # =========================================================
