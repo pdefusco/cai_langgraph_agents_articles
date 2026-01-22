@@ -95,18 +95,14 @@ class BankDataGen:
         return df
 
 
-    def createSparkConnection(self):
+    def createSparkSession(self):
         """
         Method to create a Spark Connection using CML Data Connections
         """
 
-        from pyspark import SparkContext
-        SparkContext.setSystemProperty('spark.executor.cores', '2')
-        SparkContext.setSystemProperty('spark.executor.memory', '4g')
-
-        import cml.data_v1 as cmldata
-        conn = cmldata.get_connection(self.connectionName)
-        spark = conn.get_spark_session()
+        spark = (SparkSession.builder.appName("MyApp")\
+          .getOrCreate()
+          )
 
         return spark
 
@@ -175,7 +171,7 @@ def main():
     dg = BankDataGen(USERNAME, DBNAME, CONNECTION_NAME, STORAGE)
 
     # Create CML Spark Connection
-    spark = dg.createSparkConnection()
+    spark = dg.createSparkSession()
 
     # Create Banking Transactions DF
     df = dg.dataGen(spark)
