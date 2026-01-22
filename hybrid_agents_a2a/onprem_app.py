@@ -7,7 +7,7 @@ from pyspark.sql import SparkSession
 # FastAPI app
 # =========================================================
 
-app = FastAPI()
+#app = FastAPI()
 
 # =========================================================
 # On-prem Nemotron (OpenAI-compatible)
@@ -26,12 +26,14 @@ LLM = ChatOpenAI(
 spark = (
     SparkSession.builder
     .appName("on-prem-text-to-sql-agent")
-    .enableHiveSupport()   # IMPORTANT for external / metastore tables
     .getOrCreate()
 )
 
 # Optional: limit runaway queries during demos
-spark.conf.set("spark.sql.shuffle.partitions", "10")
+#spark.conf.set("spark.sql.shuffle.partitions", "10")
+spark.conf.set("spark.executor.cores", 4)
+spark.conf.set("spark.executor.memory", "8g")
+
 
 # =========================================================
 # Spark SQL Executor
@@ -52,8 +54,8 @@ def run_spark_sql(sql: str) -> str:
 # Agent Endpoint
 # =========================================================
 
-@app.post("/invoke")
-async def invoke(payload: dict):
+#@app.post("/invoke")
+def invoke(payload: dict):
     question = payload["question"]
 
     prompt = f"""
