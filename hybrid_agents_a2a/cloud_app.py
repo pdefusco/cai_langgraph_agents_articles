@@ -3,7 +3,7 @@ import requests
 import gradio as gr
 from typing import TypedDict
 from langgraph.graph import StateGraph, END
-from langchain.chat_models import ChatOpenAI
+from langchain_openai import ChatOpenAI
 
 # =========================================================
 # Configuration
