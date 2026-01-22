@@ -330,12 +330,6 @@ def llm_analyze_and_fix(state: AgentState):
             lines.append(line)
         fixed_script = "\n".join(lines)
 
-        # enforce repair decision
-        if violates_repair_decision(state["spark_script"], fixed_script, repair_decision):
-            raise ValueError(
-                "LLM violated its own REPAIR DECISION (modified forbidden references)"
-            )
-
     except Exception as e:
         state["llm_analysis"] = f"LLM repair failed: {e}"
         state["improved_script"] = state["spark_script"]  # fallback
@@ -366,7 +360,7 @@ def llm_analyze_and_fix(state: AgentState):
     fixed_script = "\n".join(lines)
 
     # Enforce LLM repair decision (minimality + asymmetry guard)
-    if violates_repair_decision(
+    if violates_repair_decision_asymmetric(
         state["spark_script"],
         fixed_script,
         repair_decision
