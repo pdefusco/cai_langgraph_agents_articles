@@ -164,6 +164,22 @@ Visit the CDE Job Runs UI, wait for the job run finish running and confirm it fa
 
 ![alt text](img/sql-select-fail-2.png)
 
+```
+driver --proxy-user pauldefusco --properties-file /opt/spark/conf/spark.properties --class org.apache.spark.deploy.PythonRunner file:///app/mount/sparkApp.py spark_catalog.default.dynamic_incremental_target_table_large_overlap spark_catalog.default.dynamic_incremental_source_table_large_overlap
+Traceback (most recent call last):
+  File "/app/mount/sparkApp.py", line 19, in <module>
+    spark.sql(f"""
+  File "/opt/spark/python/lib/pyspark.zip/pyspark/sql/session.py", line 1631, in sql
+  File "/opt/spark/python/lib/py4j-0.10.9.7-src.zip/py4j/java_gateway.py", line 1322, in __call__
+  File "/opt/spark/python/lib/pyspark.zip/pyspark/errors/exceptions/captured.py", line 185, in deco
+pyspark.errors.exceptions.captured.AnalysisException: [UNRESOLVED_COLUMN.WITH_SUGGESTION] A column or function parameter with name `customer_id` cannot be resolved. Did you mean one of the following? [`account_id`, `category`, `value1`, `value2`, `value3`].; line 2 pos 11;
+'Project ['customer_id, category#1, value1#2, value2#3]
++- SubqueryAlias spark_catalog.default.dynamic_incremental_target_table_large_overlap
+   +- RelationV2[account_id#0L, category#1, value1#2, value2#3, value3#4, value4#5, value5#6, value6#7, value7#8, value8#9, event_ts#10] spark_catalog.default.dynamic_incremental_target_table_large_overlap spark_catalog.default.dynamic_incremental_target_table_large_overlap
+```
+
+As shown by the above error trace, the problem is that the Spark SQL statement selected a column that does not exist in the table schema. 
+
 #### 4. Launch a CAI Session and Install Requirements for the MAS
 
 Launch your first CAI Session with PBJ Runtime. You won't need a lot of resources:
