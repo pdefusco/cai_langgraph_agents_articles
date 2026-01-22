@@ -253,7 +253,7 @@ Navigate to the CDE UI, validate the new Spark Job definition, its dependencies,
 
 In this tutorial, you implemented a MultiAgent System to monitor the status of a Spark application in Cloudera Data Engineering (CDE), have an LLM analyze the code and related logs, create a new version of the application code, and recreate and run the new code in CDE. We call this a "Self Healing Pipeline".
 
-You built this in Cloudera AI leveraging an Nvidia Nemotron 49B endopint, LangGraph, and the Cloudera AI Inference Service. This tutorial can serve as a reusable template to build MultiAgent Systems that autonomously monitor and correct data engineering pipelines.
+You built this in Cloudera AI leveraging an Nvidia Nemotron 49B endpoint, LangGraph, and the Cloudera AI Inference Service. This tutorial can serve as a reusable template to build MultiAgent Systems that autonomously monitor and fix errors in data engineering pipelines.
 
 **Additional Resources & Tutorials**
 Explore these helpful tutorials and blogs to learn more about Cloudera AI, the AI Registry, and AI Inference Service:
