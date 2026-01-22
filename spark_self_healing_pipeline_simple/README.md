@@ -198,8 +198,6 @@ LLM_ENDPOINT_BASE_URL: Obtain from the Model Endpoint UI in the AI Inference Ser
 LLM_CDP_TOKEN: Obtain from the Model Endpoint UI in the AI Inference Service
 ```
 
-![alt text](img/failed_logs.png)
-
 ![alt text](img/inf-service-ui.png)
 
 Your environment variables tab should look something like this:
@@ -234,9 +232,7 @@ Towards the middle, the original application code is provided on the left and th
 
 Finally, at the bottom, the Driver stdout logs from the original application are shown in the box in the left. In the center, the LLM reasoning steps are shown. Finally, on the right, a diff between the two application scripts is presented.
 
-![alt text](img/app-ui-1.png)
-
-![alt text](img/app-ui-2.png)
+![alt text](img/gradio_ui.png)
 
 Open the Application History logs to follow along the LangGraph execution.  
 
@@ -248,17 +244,14 @@ Open the Application History logs to follow along the LangGraph execution.
 
 Navigate to the CDE UI, validate the new Spark Job definition, its dependencies, and a follow the new run's progress.
 
-![alt text](img/cde-new-res-1.png)
-
-![alt text](img/cde-new-res-2.png)
-
-![alt text](img/cde-new-job-definition.png)
-
-![alt text](img/cde-new-run.png)
-
-![alt text](img/failing-pipeline-fixed.png)
+![alt text](img/fixed-1.png)
 
 ![alt text](img/fixed-2.png)
+
+![alt text](img/fixed-3.png)
+
+![alt text](img/fixed-4.png)
+
 
 ## Summary & Next Steps
 
