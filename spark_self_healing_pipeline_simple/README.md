@@ -238,10 +238,6 @@ Open the Application History logs to follow along the LangGraph execution.
 
 ![alt text](img/app-execution-0.png)
 
-![alt text](img/app-execution-1.png)
-
-![alt text](img/app-execution-2.png)
-
 Navigate to the CDE UI, validate the new Spark Job definition, its dependencies, and a follow the new run's progress.
 
 ![alt text](img/fixed-1.png)
