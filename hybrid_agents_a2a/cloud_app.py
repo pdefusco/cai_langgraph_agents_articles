@@ -10,6 +10,8 @@ from langchain_openai import ChatOpenAI
 # =========================================================
 
 ON_PREM_AGENT_URL = os.getenv("ON_PREM_AGENT_URL")
+ON_PREM_AGENT_ACCESS_KEY = os.getenv("ON_PREM_AGENT_ACCESS_KEY")
+ON_PREM_AGENT_API_KEY = os.getenv("ON_PREM_AGENT_API_KEY")
 
 CLOUD_LLM = ChatOpenAI(
     model=os.getenv("CLOUD_MODEL_ID"),
@@ -31,14 +33,30 @@ class State(TypedDict):
 # A2A Client Node (Cloud → On-Prem)
 # =========================================================
 
-def call_on_prem_agent(question: str) -> dict:
-    response = requests.post(
-        ON_PREM_AGENT_URL,
-        json={"question": question},
-        timeout=20,
-    )
+import requests
+
+def call_on_prem_agent(question: str, api_key: str, access_key: str) -> dict:
+
+    # URL with accessKey in query string
+    url = f"{ON_PREM_AGENT_URL}?accessKey={ON_PREM_AGENT_ACCESS_KEY}"
+
+    # JSON payload
+    payload = {
+        "request": {
+            "param": question
+        }
+    }
+
+    # Headers with Bearer token
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {ON_PREM_AGENT_API_KEY}"
+    }
+
+    response = requests.post(url, data=json.dumps(payload), headers=headers, timeout=20)
     response.raise_for_status()
     return response.json()
+
 
 def on_prem_node(state: State) -> State:
     result = call_on_prem_agent(state["question"])
