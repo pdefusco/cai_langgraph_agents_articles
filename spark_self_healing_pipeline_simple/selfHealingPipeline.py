@@ -234,12 +234,21 @@ def parse_repair_decision(text: str) -> dict:
     return repair
 
 
-def violates_repair_decision(original: str, fixed: str, decision: dict) -> bool:
-    for ref, repl in zip(decision.get("invalid", []), decision.get("replacement", [])):
-        # Only enforce that the invalid side was replaced
-        if ref in original and ref not in fixed and repl in fixed:
+def violates_repair_decision_asymmetric(original: str, fixed: str, decision: dict) -> bool:
+    """
+    Returns True if any invalid reference was not correctly replaced
+    on the side that actually needed replacement.
+    """
+    invalid_refs = decision.get("invalid", [])
+    replacements = decision.get("replacement", [])
+
+    for invalid, repl in zip(invalid_refs, replacements):
+        # Only enforce that the invalid column was replaced in fixed script
+        if invalid in original and invalid in fixed:
+            # Still appears? violation
             return True
     return False
+
 
 
 
@@ -271,7 +280,7 @@ def llm_analyze_and_fix(state: AgentState):
                 "11. Do not add any markdown ticks.\n"
                 "12. Assume the spark submit remains unchanged.\n"
                 "13. Single line comments showing changes are allowed, starting with #\n"
-                "14. If a binary join or merge key contains invalid references, replace only the side that is invalid, even if the other side uses a different column. Do not assume symmetric replacement unless both sides are invalid.\n"
+                "14. If a binary join or merge key has invalid references, replace only the side that is invalid. Do not modify the other side unless it also prevents execution.\n"
                 "15. Before producing the final script, verify that no previously valid column references were changed.\n\n"
 
                 "Respond EXACTLY in this format:\n"
