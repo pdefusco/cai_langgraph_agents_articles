@@ -178,7 +178,9 @@ pyspark.errors.exceptions.captured.AnalysisException: [UNRESOLVED_COLUMN.WITH_SU
    +- RelationV2[account_id#0L, category#1, value1#2, value2#3, value3#4, value4#5, value5#6, value6#7, value7#8, value8#9, event_ts#10] spark_catalog.default.dynamic_incremental_target_table_large_overlap spark_catalog.default.dynamic_incremental_target_table_large_overlap
 ```
 
-As shown by the above error trace, the problem is that the Spark SQL statement selected a column that does not exist in the table schema.
+As shown by the above error trace, the cause of the failed run is the fact that the Spark SQL statement selected column "customer_id" which does not exist in the table schema. Notice the error trace also provides us with the columns present in the table schema, which includes "account_id".
+
+The objective of the MultiAgent System is for it to recognize that we probably meant to select "account_id", replace the value in the code, and recreate and rerun the job.
 
 #### 4. Launch a CAI Session and Install Requirements for the MAS
 
