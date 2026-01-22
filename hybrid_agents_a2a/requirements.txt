@@ -10,3 +10,6 @@ thrift>=0.16.0
 thrift-sasl>=0.4.3
 pure-sasl>=0.6.2
 typing_extensions>=4.7.0
+PyArrow
+jmespath
+dbldatagen
