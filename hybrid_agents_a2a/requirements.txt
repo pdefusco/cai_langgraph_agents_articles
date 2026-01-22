@@ -5,7 +5,6 @@ openai>=1.0.0
 fastapi>=0.110.0
 uvicorn>=0.29.0
 requests>=2.31.0
-pyhive[hive]>=0.7.0
 thrift>=0.16.0
 thrift-sasl>=0.4.3
 pure-sasl>=0.6.2
