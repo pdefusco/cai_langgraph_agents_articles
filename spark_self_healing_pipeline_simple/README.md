@@ -72,16 +72,13 @@ LLM_CDP_TOKEN: Enter the CDP Token for Nemotron from the Inference Service UI
 
 #### 3. Create and Launch the CDE Spark Pipeline
 
-Open ```sparkApp.py``` and familiarize yourself with the code. This is a Spark Iceberg application that incrementally generates synthetic data batches and upserts them into a target table using the Iceberg Merge Into. Notice at lines 136-142 the table names are assigned a wrong name. This will be the source of the error.
+Open ```sparkApp.py``` and familiarize yourself with the code. This is a Spark Iceberg application that incrementally generates synthetic data batches and upserts them into a target table using the Iceberg Merge Into. Notice at lines 19-22 the table names are assigned a wrong name. This will be the source of the error.
 
 ```
-# 99.99% chance to use a bogus column name
-if random.random() < 0.9999:
-    source_ts_col = "source.fake_event_ts"
-    target_ts_col = "target.fake_event_ts"
-else:
-    source_ts_col = "source.event_ts"
-    target_ts_col = "target.event_ts"
+spark.sql(f"""
+    SELECT customer_id, category, value1, value2
+    FROM {targetTable}
+    """).show()
 ```
 
 Next, using the CDE CLI, run the following commands to set up all dependencies required for the Spark Pipeline in CDE.
@@ -140,10 +137,10 @@ Once the datagen job has succeeded, create and run the failing-pipeline job.
 
 ```
 cde job delete \
-  --name failing-select
+  --name sql-select-fail
 
 cde job create \
-  --name failing-select \
+  --name sql-select-fail \
   --type spark \
   --application-file sparkApp.py \
   --python-env-resource-name datagen-env \
@@ -158,14 +155,14 @@ cde job create \
   --conf spark.dynamicAllocation.maxExecutors=20
 
 cde job run \
-  --name failing-select
+  --name sql-select-fail
 ```
 
 Visit the CDE Job Runs UI, wait for the job run finish running and confirm it fails. Open the logs tab and investigate the cause of failure.
 
-![alt text](img/failed_run.png)
+![alt text](img/sql-select-fail-1.png)
 
-![alt text](img/failed_logs.png)
+![alt text](img/sql-select-fail-2.png)
 
 #### 4. Launch a CAI Session and Install Requirements for the MAS
 
@@ -192,7 +189,7 @@ JOBS_API_URL: Obtain from the CDE UI
 WORKLOAD_USER: Your CDP Username
 WORKLOAD_PASSWORD: Your CDP User Password
 
-JOB_NAME: failing-pipeline
+JOB_NAME: sql-select-fail
 RESOURCE_NAME: failing-pipeline
 APPLICATION_FILE_NAME: sparkApp.py
 

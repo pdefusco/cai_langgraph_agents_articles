@@ -74,7 +74,7 @@ if not table_exists:
 
     df1_spec = (
         DataGenerator(spark, name="df1_gen", rows=row_count, partitions=num_partitions, seedColumnName="_seed_id")
-        .withColumn("id", "long", values=skewed_ids, weights=skew_weights)
+        .withColumn("account_id", "long", values=skewed_ids, weights=skew_weights)
         .withColumn("category", "string", values=["A", "B", "C", "D", "E"], random=True)
         .withColumn("value1", "double", minValue=0, maxValue=1000, random=True)
         .withColumn("value2", "double", minValue=0, maxValue=100, random=True)
