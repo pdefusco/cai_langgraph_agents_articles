@@ -13,19 +13,14 @@ sourceTable = sys.argv[2]
 today = date.today()
 
 spark = SparkSession.builder \
-    .appName(f"IcebergDynamicMultiKeySkew_{today}") \
+    .appName(f"SELECT_TABLE_{today}") \
     .getOrCreate()
 
 spark.sql(f"""
-    MERGE INTO {targetTable} AS target
-    USING {sourceTable} AS source
-    ON target.id = source.id
-    WHEN MATCHED AND source.event_ts > target.event_ts THEN
-      UPDATE SET *
-    WHEN NOT MATCHED THEN
-      INSERT *
-""")
+    SELECT customer_id, category, value1, value2
+    FROM {targetTable}
+    """).show()
 
-print("Iceberg MERGE INTO operation completed.")
+print("SELECT TABLE COMPLETED.")
 
 spark.stop()
