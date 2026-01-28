@@ -58,7 +58,7 @@ def run_spark_sql(sql: str) -> str:
 # =========================================================
 
 #@app.post("/invoke")
-def invoke(payload: dict):
+def invoke(payload):
     payload = json.loads(payload)
     question = payload.get("request").get("question")
 
@@ -73,7 +73,7 @@ Your task:
 - Do NOT include explanations.
 
 Table:
-DataLakeTable
+TableTest
 
 Schema:
 - age FLOAT
