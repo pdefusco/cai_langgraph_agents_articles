@@ -35,7 +35,7 @@ class State(TypedDict):
 
 import requests
 
-def call_on_prem_agent(question: str, api_key: str, access_key: str) -> dict:
+def call_on_prem_agent(question: str) -> dict:
 
     # URL with accessKey in query string
     url = f"{ON_PREM_AGENT_URL}?accessKey={ON_PREM_AGENT_ACCESS_KEY}"
