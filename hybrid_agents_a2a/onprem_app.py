@@ -23,9 +23,14 @@ LLM = ChatOpenAI(
 # Spark Session (shared, created once)
 # =========================================================
 
+from pyspark.sql import SparkSession
+
 spark = (
     SparkSession.builder
     .appName("on-prem-text-to-sql-agent")
+    .config("spark.executor.memory", "8g")
+    .config("spark.executor.cores", "4")
+    .config("spark.sql.shuffle.partitions", "10")
     .getOrCreate()
 )
 
