@@ -1,4 +1,4 @@
-import os
+import os, json
 #from fastapi import FastAPI
 from langchain_openai import ChatOpenAI
 from pyspark.sql import SparkSession
@@ -56,7 +56,8 @@ def run_spark_sql(sql: str) -> str:
 
 #@app.post("/invoke")
 def invoke(payload: dict):
-    question = payload["question"]
+    payload = json.loads(payload)
+    question = payload.get("request").get("question")
 
     prompt = f"""
 You are a Text-to-SQL agent.

@@ -43,7 +43,7 @@ def call_on_prem_agent(question: str) -> dict:
     # JSON payload
     payload = {
         "request": {
-            "param": question
+            "question": question
         }
     }
 
