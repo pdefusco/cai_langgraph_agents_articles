@@ -131,7 +131,7 @@ langgraph_app = graph.compile()
 # Gradio UI
 # =========================================================
 
-def ask(question: str) -> str:
+'''def ask(question: str) -> str:
     final_result = None
     for chunk in langgraph_app.invoke({"question": question}, stream=True):
         print("chunk:", chunk)
@@ -140,8 +140,13 @@ def ask(question: str) -> str:
             final_result = chunk
     if final_result is None:
         return "No result returned"
-    return final_result["answer"]
+    return final_result["answer"]'''
 
+def ask(question: str) -> str:
+    # Invoke LangGraph in non-streaming mode
+    result = langgraph_app.invoke({"question": question}, stream=False)
+    print("ask() got final result:", result)
+    return result.get("answer", "No result returned")
 
 
 demo = gr.Interface(
