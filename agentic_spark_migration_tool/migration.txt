@@ -1,0 +1,147 @@
+DOCUMENT_TYPE: spark_submit_to_cde_job_mapping
+DOCUMENT_ID: example_001
+CONFIDENCE_LEVEL: example
+INTENDED_USE: RAG_REFERENCE
+FRAMEWORK: cdepy
+LANGUAGE: pyspark
+
+PURPOSE:
+This document provides a concrete example mapping between a spark-submit
+command and the corresponding Cloudera Data Engineering (CDE) job creation
+workflow using the cdepy Python library. It is intended to be used as a
+retrieval reference by an LLM-powered coding agent.
+
+================================================================================
+SPARK SUBMIT INPUT
+================================================================================
+
+spark-submit \
+  --master yarn \
+  --deploy-mode cluster \
+  --name user_event_aggregation \
+  --executor-memory 4g \
+  --executor-cores 2 \
+  --num-executors 5 \
+  --conf spark.sql.shuffle.partitions=200 \
+  --conf spark.dynamicAllocation.enabled=false \
+  --conf spark.serializer=org.apache.spark.serializer.KryoSerializer \
+  --files config.yaml \
+  user_event_aggregation.py \
+  --input s3a://raw/events \
+  --output s3a://curated/events
+
+================================================================================
+PARSED SPARK SUBMIT SEMANTICS
+================================================================================
+
+APPLICATION_FILE:
+  user_event_aggregation.py
+
+DEPENDENCY_FILES:
+  - config.yaml
+
+EXECUTOR_CONFIGURATION:
+  executorMemory: 4g
+  executorCores: 2
+  numExecutors: 5
+
+SPARK_CONF_FLAGS:
+  spark.sql.shuffle.partitions: 200
+  spark.dynamicAllocation.enabled: false
+  spark.serializer: org.apache.spark.serializer.KryoSerializer
+
+APPLICATION_ARGUMENTS:
+  --input => s3a://raw/events
+  --output => s3a://curated/events
+
+================================================================================
+CDE FILES RESOURCE MAPPING
+================================================================================
+
+CDE_RESOURCE_NAME:
+  user_event_aggregation_files
+
+RESOURCE_TYPE:
+  Files Resource
+
+FILES_TO_UPLOAD:
+  - user_event_aggregation.py
+  - config.yaml
+
+LOCAL_FILE_DIRECTORY:
+  scripts/
+
+RESOURCE_PURPOSE:
+  Store PySpark application and dependency files required by the Spark job.
+
+CDEPY_RESOURCE_CREATION:
+  cderesource.CdeFilesResource("user_event_aggregation_files")
+  .createResourceDefinition()
+
+================================================================================
+CDE JOB DEFINITION MAPPING
+================================================================================
+
+CDE_JOB_NAME:
+  user_event_aggregation_job
+
+APPLICATION_FILE:
+  user_event_aggregation.py
+
+RESOURCE_REFERENCE:
+  user_event_aggregation_files
+
+EXECUTOR_SETTINGS:
+  executorMemory: "4g"
+  executorCores: 2
+
+SPARK_CONF_MAPPING (FROM --conf FLAGS):
+  sparkConf = {
+    "spark.sql.shuffle.partitions": "200",
+    "spark.dynamicAllocation.enabled": "false",
+    "spark.serializer": "org.apache.spark.serializer.KryoSerializer"
+  }
+
+CDEPY_JOB_DEFINITION_EXAMPLE:
+  cdejob.CdeSparkJob.createJobDefinition(
+      job_name="user_event_aggregation_job",
+      resource_name="user_event_aggregation_files",
+      application_file="user_event_aggregation.py",
+      executorMemory="4g",
+      executorCores=2,
+      sparkConf={
+          "spark.sql.shuffle.partitions": "200",
+          "spark.dynamicAllocation.enabled": "false",
+          "spark.serializer": "org.apache.spark.serializer.KryoSerializer"
+      }
+  )
+
+================================================================================
+CDE JOB CREATION SEQUENCE (ORDERING CONSTRAINT)
+================================================================================
+
+STEP 1:
+  Create CDE Files Resource
+
+STEP 2:
+  Upload local files to resource
+    - user_event_aggregation.py
+    - config.yaml
+
+STEP 3:
+  Create CDE Spark Job using job definition
+
+CDEPY_EXECUTION_SEQUENCE:
+  CdeClusterManager.createResource(resource_definition)
+  CdeClusterManager.uploadFileToResource(resource_name, local_path, file_name)
+  CdeClusterManager.createJob(job_definition)
+
+================================================================================
+IMPORTANT ASSUMPTIONS
+================================================================================
+
+- Each spark-submit requires at least one application file.
+- All application and dependency files must be uploaded to a CDE Files Resource.
+- --conf flags map directly to the sparkConf dictionary in cdepy.
+- Application arguments are passed at job runtime, not during job definition.
+- Resource creation must occur before job creation.

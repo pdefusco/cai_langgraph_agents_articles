@@ -1,0 +1,9 @@
+langgraph>=0.1.9
+langchain-openai>=0.1.14
+openai>=1.0.0
+cdepy>=0.8.0
+chromadb>=0.6.5
+gradio>=3.41.0
+pydantic>=2.3.0
+beautifulsoup4>=4.12.2
+requests>=2.31.0
