@@ -99,12 +99,13 @@ Result:
 {state['raw_result']}
 """
     print(">>> calling CLOUD_LLM")
-    response = CLOUD_LLM.invoke(prompt).content.strip().strip("`")
-    print(">>> CLOUD_LLM done")
+    response = CLOUD_LLM.invoke(prompt)
+    answer_text = response.content.strip().strip("`")  # ensure it's a string
+    print(">>> CLOUD_LLM done. answer:", answer_text)
 
     return {
         **state,
-        "answer": response.content
+        "answer": answer_text
     }
 
 '''def guardrail_node(state: State) -> State:
