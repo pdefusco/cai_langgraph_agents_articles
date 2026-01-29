@@ -43,13 +43,27 @@ spark = (
 # =========================================================
 # Spark SQL Executor
 # =========================================================
-def run_spark_sql(sql: str) -> str:
+def run_spark_sql(sql: str) -> list[dict]:
     """
-    Execute Spark SQL and return a small, safe string result.
+    Execute Spark SQL and return a safe, truncated JSON result.
     """
     df = spark.sql(sql)
-    rows = df.limit(20).toPandas()  # limit output size
-    return rows.to_string(index=False)
+
+    # Limit rows
+    MAX_ROWS = 20
+    df = df.limit(MAX_ROWS)
+
+    # Optional: truncate columns to avoid huge payloads
+    MAX_COLS = 8
+    df = df.select(df.columns[:MAX_COLS])
+
+    # Convert to list of dicts for JSON
+    rows = df.toPandas().to_dict(orient="records")
+
+    print(f"[Spark] Returning {len(rows)} rows with {len(df.columns)} columns")  # logging
+    return rows
+
+
 
 @app.get("/health")
 def health():
@@ -106,6 +120,7 @@ User question:
 """
     print(">>> calling LLM")
     sql = LLM.invoke(prompt).content.strip()
+    print(">>> generated SQL:", sql)
     print(">>> LLM done")
     print(">>> running spark")
     result = run_spark_sql(sql)
@@ -117,7 +132,7 @@ User question:
 # Start the server (safe for Cloudera AI container)
 # =========================================================
 def run_server():
-    uvicorn.run(app, host="127.0.0.1", port=int(os.environ['CDSW_APP_PORT']), log_level="warning", reload=False)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ['CDSW_APP_PORT']), log_level="warning", reload=False)
 
 server_thread = threading.Thread(target=run_server)
 server_thread.start()
