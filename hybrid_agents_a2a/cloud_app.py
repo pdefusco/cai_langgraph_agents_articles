@@ -130,7 +130,7 @@ langgraph_app = graph.compile()
 
 def ask(question: str) -> str:
     # Invoke LangGraph in non-streaming mode
-'''    result = langgraph_app.invoke({"question": question}, stream=False)
+    '''result = langgraph_app.invoke({"question": question}, stream=False)
     print("ask() full result:", result, type(result))
     print(json.dumps(result, indent=2))'''
     result = [{"count(1)": 10000}]
