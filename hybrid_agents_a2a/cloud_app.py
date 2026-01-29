@@ -132,12 +132,16 @@ langgraph_app = graph.compile()
 # =========================================================
 
 def ask(question: str) -> str:
-    # Stream results, then get final output
-    result = langgraph_app.invoke({"question": question}, stream=True)
     final_result = None
-    for chunk in result:
-        final_result = chunk  # overwrite, only final chunk matters
+    for chunk in langgraph_app.invoke({"question": question}, stream=True):
+        print("chunk:", chunk)
+        # Only take chunks that have 'answer'
+        if "answer" in chunk:
+            final_result = chunk
+    if final_result is None:
+        return "No result returned"
     return final_result["answer"]
+
 
 
 demo = gr.Interface(
