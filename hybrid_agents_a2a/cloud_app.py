@@ -44,6 +44,7 @@ CLOUD_AGENT_URL = os.getenv("CLOUD_AGENT_URL") + "invoke"
 CLOUD_AGENT_API_KEY = os.getenv("CLOUD_AGENT_API_KEY")  # optional
 
 def call_cloud_agent(question: str) -> dict:
+    print(">>> call_cloud_agent start")
     payload = {
         "request": {
             "question": question
@@ -64,9 +65,11 @@ def call_cloud_agent(question: str) -> dict:
         headers=headers,
         timeout=30,
     )
+    print(">>> call_cloud_agent got response:", response.status_code)
     response.raise_for_status()
-    return response.json()
-
+    result = response.json()
+    print(">>> call_cloud_agent json:", result)
+    return result
 
 
 def cloud_node(state: State) -> State:
