@@ -74,6 +74,7 @@ def call_cloud_agent(question: str) -> dict:
 
 def cloud_node(state: State) -> State:
     result = call_cloud_agent(state["question"])
+    sql = result["sql"].strip().strip("`")
     return {
         **state,
         "sql": result["sql"],
