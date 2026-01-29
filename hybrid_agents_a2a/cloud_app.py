@@ -4,7 +4,9 @@ import gradio as gr
 from typing import TypedDict
 from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI
+import httpx
 
+http_client = httpx.Client(verify=False)
 
 # =========================================================
 # Configuration
@@ -18,6 +20,7 @@ CLOUD_LLM = ChatOpenAI(
     model=os.getenv("CLOUD_MODEL_ID"),
     api_key=os.getenv("CLOUD_MODEL_KEY"),
     base_url=os.getenv("CLOUD_MODEL_ENDPOINT"),
+    http_client=http_client
 )
 
 # =========================================================
