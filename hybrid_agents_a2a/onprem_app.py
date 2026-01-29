@@ -47,6 +47,7 @@ def run_spark_sql(sql: str) -> list[dict]:
     """
     Execute Spark SQL and return a safe, truncated JSON result.
     """
+    sql = sql.strip().strip("`")
     df = spark.sql(sql)
 
     # Limit rows
