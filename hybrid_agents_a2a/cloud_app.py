@@ -40,7 +40,7 @@ class State(TypedDict):
 import requests
 import os
 
-CLOUD_AGENT_URL = os.getenv("CLOUD_AGENT_URL") + "/invoke"
+CLOUD_AGENT_URL = os.getenv("CLOUD_AGENT_URL") + "invoke"
 CLOUD_AGENT_API_KEY = os.getenv("CLOUD_AGENT_API_KEY")  # optional
 
 def call_cloud_agent(question: str) -> dict:
