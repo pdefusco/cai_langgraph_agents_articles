@@ -99,7 +99,7 @@ Result:
 {state['raw_result']}
 """
     print(">>> calling CLOUD_LLM")
-    response = CLOUD_LLM.invoke(prompt)
+    response = CLOUD_LLM.invoke(prompt).content.strip().strip("`")
     print(">>> CLOUD_LLM done")
 
     return {
