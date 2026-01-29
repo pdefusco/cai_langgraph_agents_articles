@@ -84,7 +84,7 @@ def cloud_node(state: State) -> State:
 # Guardrail Agent (Cloud)
 # =========================================================
 
-def guardrail_node(state: State) -> State:
+'''def guardrail_node(state: State) -> State:
     prompt = f"""
 You are a guardrail agent.
 
@@ -98,13 +98,19 @@ SQL:
 Result:
 {state['raw_result']}
 """
-
+    print(">>> calling CLOUD_LLM")
     response = CLOUD_LLM.invoke(prompt)
+    print(">>> CLOUD_LLM done")
 
     return {
         **state,
         "answer": response.content
-    }
+    }'''
+
+def guardrail_node(state: State) -> State:
+    print(">>> guardrail_node state:", state)
+    return {**state, "answer": str(state["raw_result"])}
+
 
 # =========================================================
 # LangGraph Definition
@@ -126,7 +132,7 @@ langgraph_app = graph.compile()
 # =========================================================
 
 def ask(question: str) -> str:
-    result = langgraph_app.invoke({"question": question})
+    result = langgraph_app.invoke({"question": question}, stream=False)
     return result["answer"]
 
 demo = gr.Interface(
