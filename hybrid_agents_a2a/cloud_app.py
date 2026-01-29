@@ -35,28 +35,35 @@ class State(TypedDict):
 # =========================================================
 
 import requests
+import os
+
+CLOUD_AGENT_URL = os.getenv("CLOUD_AGENT_URL")
+CLOUD_AGENT_API_KEY = os.getenv("CLOUD_AGENT_API_KEY")  # optional
 
 def call_cloud_agent(question: str) -> dict:
-
-    # URL with accessKey in query string
-    url = f"{ON_PREM_AGENT_URL}?accessKey={ON_PREM_AGENT_ACCESS_KEY}"
-
-    # JSON payload
     payload = {
         "request": {
             "question": question
         }
     }
 
-    # Headers with Bearer token
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {ON_PREM_AGENT_API_KEY}"
     }
 
-    response = requests.post(url, data=json.dumps(payload), headers=headers, timeout=20)
+    # Only include Authorization if you actually enforce it
+    if CLOUD_AGENT_API_KEY:
+        headers["Authorization"] = f"Bearer {CLOUD_AGENT_API_KEY}"
+
+    response = requests.post(
+        CLOUD_AGENT_URL,
+        json=payload,      # <-- IMPORTANT
+        headers=headers,
+        timeout=30,
+    )
     response.raise_for_status()
     return response.json()
+
 
 
 def cloud_node(state: State) -> State:
