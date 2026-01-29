@@ -131,8 +131,14 @@ langgraph_app = graph.compile()
 def ask(question: str) -> str:
     # Invoke LangGraph in non-streaming mode
     result = langgraph_app.invoke({"question": question}, stream=False)
-    print("ask() got final result:", result, type(result))
-    return result.get("answer", "No result returned")
+    print("ask() full result:", result, type(result))
+    print(json.dumps(result, indent=2))
+    # Extract answer from the guardrail node
+    guardrail_result = result.get("guardrail", {})
+    answer_text = guardrail_result.get("answer", "No result returned")
+
+    return answer_text
+
 
 
 demo = gr.Interface(
