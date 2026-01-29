@@ -48,6 +48,10 @@ def run_spark_sql(sql: str) -> str:
     rows = df.limit(20).toPandas()  # limit output size
     return rows.to_string(index=False)
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 # =========================================================
 # Agent Endpoint
 # =========================================================
