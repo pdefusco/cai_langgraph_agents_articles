@@ -118,5 +118,10 @@ User question:
         "result": result
     }
 
+import uvicorn
+
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=int(os.getenv("CDSW_APP_PORT")))
+    port = int(os.getenv("CDSW_APP_PORT", 8080))
+    config = uvicorn.Config(app, host="0.0.0.0", port=port, log_level="info")
+    server = uvicorn.Server(config)
+    server.run()
