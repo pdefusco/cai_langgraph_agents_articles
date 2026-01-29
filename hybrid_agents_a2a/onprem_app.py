@@ -109,7 +109,7 @@ User question:
 if __name__ == "__main__":
     port = int(os.getenv("CDSW_APP_PORT", 8080))
     uvicorn.run(
-        "your_script_name:app",  # replace with your script filename, e.g., main:app
+        "on_prem_app:app",  # replace with your script filename, e.g., main:app
         host="0.0.0.0",
         port=port,
         log_level="info",
