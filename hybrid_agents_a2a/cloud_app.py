@@ -128,12 +128,10 @@ langgraph_app = graph.compile()
 
     return "No result returned"'''
 
-
-
 def ask(question: str) -> str:
     # Invoke LangGraph in non-streaming mode
     result = langgraph_app.invoke({"question": question}, stream=False)
-    print("ask() got final result:", result)
+    print("ask() got final result:", result, type(result))
     return result.get("answer", "No result returned")
 
 
