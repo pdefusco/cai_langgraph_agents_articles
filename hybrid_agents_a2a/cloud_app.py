@@ -5,6 +5,7 @@ from typing import TypedDict
 from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI
 
+
 # =========================================================
 # Configuration
 # =========================================================
@@ -35,7 +36,7 @@ class State(TypedDict):
 
 import requests
 
-def call_on_prem_agent(question: str) -> dict:
+def call_cloud_agent(question: str) -> dict:
 
     # URL with accessKey in query string
     url = f"{ON_PREM_AGENT_URL}?accessKey={ON_PREM_AGENT_ACCESS_KEY}"
@@ -58,8 +59,8 @@ def call_on_prem_agent(question: str) -> dict:
     return response.json()
 
 
-def on_prem_node(state: State) -> State:
-    result = call_on_prem_agent(state["question"])
+def cloud_node(state: State) -> State:
+    result = call_cloud_agent(state["question"])
     return {
         **state,
         "sql": result["sql"],
@@ -98,11 +99,11 @@ Result:
 
 graph = StateGraph(State)
 
-graph.add_node("on_prem", on_prem_node)
+graph.add_node("cloud", cloud_node)
 graph.add_node("guardrail", guardrail_node)
 
-graph.set_entry_point("on_prem")
-graph.add_edge("on_prem", "guardrail")
+graph.set_entry_point("cloud")
+graph.add_edge("cloud", "guardrail")
 graph.add_edge("guardrail", END)
 
 langgraph_app = graph.compile()

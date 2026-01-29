@@ -2,12 +2,21 @@ import os, json
 #from fastapi import FastAPI
 from langchain_openai import ChatOpenAI
 from pyspark.sql import SparkSession
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
 
 # =========================================================
 # FastAPI app
 # =========================================================
 
-#app = FastAPI()
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # =========================================================
 # On-prem Nemotron (OpenAI-compatible)
@@ -57,9 +66,9 @@ def run_spark_sql(sql: str) -> str:
 # Agent Endpoint
 # =========================================================
 
-#@app.post("/invoke")
-def invoke(payload):
-    payload = json.loads(payload)
+@app.post("/invoke")
+def invoke(payload: dict):
+    #payload = json.loads(payload)
     question = payload.get("request").get("question")
 
     prompt = f"""
@@ -108,3 +117,6 @@ User question:
         "sql": sql,
         "result": result
     }
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=int(os.getenv("CDSW_APP_PORT")))
