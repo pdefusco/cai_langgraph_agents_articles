@@ -102,11 +102,8 @@ User question:
 # =========================================================
 # Start the server (safe for Cloudera AI container)
 # =========================================================
-if __name__ == "__main__":
-    uvicorn.run(
-        "onprem_app:app",
-        host="0.0.0.0",
-        port=8000,
-        log_level="warning",
-        reload=False
-    )
+def run_server():
+    uvicorn.run(app, host="127.0.0.1", port=int(os.environ['CDSW_APP_PORT']), log_level="warning", reload=False)
+
+server_thread = threading.Thread(target=run_server)
+server_thread.start()
