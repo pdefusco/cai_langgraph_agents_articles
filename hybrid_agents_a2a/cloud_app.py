@@ -101,7 +101,7 @@ Result:
 """
     print(">>> calling CLOUD_LLM")
     response = CLOUD_LLM.invoke(prompt)
-    answer_text = response.content.strip().strip("`")  # ensure it's a string
+    answer_text = str(response.content).strip().strip("`")  # ensure it's a string
     print(">>> CLOUD_LLM done. answer:", answer_text)
 
     return {
@@ -134,19 +134,15 @@ langgraph_app = graph.compile()
 # =========================================================
 
 def ask(question: str) -> str:
-    # invoke LangGraph
-    full_result = langgraph_app.invoke({"question": question}, stream=False)
-    print("ask() full_result:", full_result)
+    result = langgraph_app.invoke({"question": question}, stream=False)
+    print("ask() full result:", result)
 
-    # get the last node result
-    if isinstance(full_result, dict):
-        # LangGraph returns node outputs keyed by node name
-        if "guardrail" in full_result:
-            return full_result["guardrail"].get("answer", "No result returned")
-        else:
-            # fallback
-            return str(full_result)
+    # If LangGraph returns node outputs nested:
+    if "guardrail" in result and "answer" in result["guardrail"]:
+        return result["guardrail"]["answer"]
+
     return "No result returned"
+
 
 
 '''def ask(question: str) -> str:
