@@ -1,15 +1,14 @@
-import os, json
-#from fastapi import FastAPI
-from langchain_openai import ChatOpenAI
-from pyspark.sql import SparkSession
+import os
+import json
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from langchain_openai import ChatOpenAI
+from pyspark.sql import SparkSession
 import uvicorn
 
 # =========================================================
 # FastAPI app
 # =========================================================
-
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -21,7 +20,6 @@ app.add_middleware(
 # =========================================================
 # On-prem Nemotron (OpenAI-compatible)
 # =========================================================
-
 LLM = ChatOpenAI(
     model=os.getenv("ON_PREM_MODEL_ID"),
     api_key=os.getenv("ON_PREM_MODEL_KEY"),
@@ -31,9 +29,6 @@ LLM = ChatOpenAI(
 # =========================================================
 # Spark Session (shared, created once)
 # =========================================================
-
-from pyspark.sql import SparkSession
-
 spark = (
     SparkSession.builder
     .appName("on-prem-text-to-sql-agent")
@@ -42,34 +37,29 @@ spark = (
 )
 
 # Optional: limit runaway queries during demos
-#spark.conf.set("spark.sql.shuffle.partitions", "10")
-#spark.conf.set("spark.executor.cores", 4)
-#spark.conf.set("spark.executor.memory", "8g")
-
+# spark.conf.set("spark.sql.shuffle.partitions", "10")
+# spark.conf.set("spark.executor.cores", 4)
+# spark.conf.set("spark.executor.memory", "8g")
 
 # =========================================================
 # Spark SQL Executor
 # =========================================================
-
 def run_spark_sql(sql: str) -> str:
     """
     Execute Spark SQL and return a small, safe string result.
     """
     df = spark.sql(sql)
-
-    # Limit output size defensively
-    rows = df.limit(20).toPandas()
-
+    rows = df.limit(20).toPandas()  # limit output size
     return rows.to_string(index=False)
 
 # =========================================================
 # Agent Endpoint
 # =========================================================
-
 @app.post("/invoke")
 def invoke(payload: dict):
-    #payload = json.loads(payload)
-    question = payload.get("request").get("question")
+    question = payload.get("request", {}).get("question", "")
+    if not question:
+        return {"error": "Missing question in payload"}
 
     prompt = f"""
 You are a Text-to-SQL agent.
@@ -108,20 +98,20 @@ Rules:
 User question:
 {question}
 """
-
     sql = LLM.invoke(prompt).content.strip()
-
     result = run_spark_sql(sql)
 
-    return {
-        "sql": sql,
-        "result": result
-    }
+    return {"sql": sql, "result": result}
 
-import uvicorn
-
+# =========================================================
+# Start the server (safe for Cloudera AI container)
+# =========================================================
 if __name__ == "__main__":
     port = int(os.getenv("CDSW_APP_PORT", 8080))
-    config = uvicorn.Config(app, host="0.0.0.0", port=port, log_level="info")
-    server = uvicorn.Server(config)
-    server.run()
+    uvicorn.run(
+        "your_script_name:app",  # replace with your script filename, e.g., main:app
+        host="0.0.0.0",
+        port=port,
+        log_level="info",
+        reload=False,  # set True only for development
+    )
