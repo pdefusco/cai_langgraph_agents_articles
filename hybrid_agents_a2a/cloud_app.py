@@ -84,7 +84,7 @@ def cloud_node(state: State) -> State:
 # Guardrail Agent (Cloud)
 # =========================================================
 
-'''def guardrail_node(state: State) -> State:
+def guardrail_node(state: State) -> State:
     prompt = f"""
 You are a guardrail agent.
 
@@ -105,11 +105,11 @@ Result:
     return {
         **state,
         "answer": response.content
-    }'''
+    }
 
-def guardrail_node(state: State) -> State:
+'''def guardrail_node(state: State) -> State:
     print(">>> guardrail_node state:", state)
-    return {**state, "answer": str(state["raw_result"])}
+    return {**state, "answer": str(state["raw_result"])}'''
 
 
 # =========================================================
