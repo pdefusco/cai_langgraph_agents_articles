@@ -5,17 +5,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from langchain_openai import ChatOpenAI
 from pyspark.sql import SparkSession
 import uvicorn
+import threading
+
 
 # =========================================================
 # FastAPI app
 # =========================================================
 app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # =========================================================
 # On-prem Nemotron (OpenAI-compatible)
@@ -107,11 +103,10 @@ User question:
 # Start the server (safe for Cloudera AI container)
 # =========================================================
 if __name__ == "__main__":
-    port = int(os.getenv("CDSW_APP_PORT", 8080))
     uvicorn.run(
-        "on_prem_app:app",  # replace with your script filename, e.g., main:app
+        app,
         host="0.0.0.0",
-        port=port,
-        log_level="info",
-        reload=False,  # set True only for development
+        port=8000,
+        log_level="warning",
+        reload=True
     )
