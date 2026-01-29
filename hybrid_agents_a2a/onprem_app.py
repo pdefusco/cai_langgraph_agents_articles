@@ -1,139 +1,157 @@
-import os
-import json
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+import os, json
+import requests
+import gradio as gr
+from typing import TypedDict
+from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI
-from pyspark.sql import SparkSession
-import uvicorn
-import threading
+import httpx
 
-
-# =========================================================
-# FastAPI app
-# =========================================================
-app = FastAPI()
+http_client = httpx.Client(verify=False)
 
 # =========================================================
-# On-prem Nemotron (OpenAI-compatible)
+# Configuration
 # =========================================================
-LLM = ChatOpenAI(
-    model=os.getenv("ON_PREM_MODEL_ID"),
-    api_key=os.getenv("ON_PREM_MODEL_KEY"),
-    base_url=os.getenv("ON_PREM_MODEL_ENDPOINT"),
-    timeout=15,
-    max_retries=1,
+
+ON_PREM_AGENT_URL = os.getenv("ON_PREM_AGENT_URL")
+ON_PREM_AGENT_ACCESS_KEY = os.getenv("ON_PREM_AGENT_ACCESS_KEY")
+ON_PREM_AGENT_API_KEY = os.getenv("ON_PREM_AGENT_API_KEY")
+
+CLOUD_LLM = ChatOpenAI(
+    model=os.getenv("CLOUD_MODEL_ID"),
+    api_key=os.getenv("CLOUD_MODEL_KEY"),
+    base_url=os.getenv("CLOUD_MODEL_ENDPOINT"),
+    http_client=http_client
 )
 
+# =========================================================
+# LangGraph State
+# =========================================================
+
+class State(TypedDict):
+    question: str
+    sql: str
+    raw_result: str
+    answer: str
 
 # =========================================================
-# Spark Session (shared, created once)
+# A2A Client Node (Cloud → On-Prem)
 # =========================================================
-spark = (
-    SparkSession.builder
-    .appName("on-prem-text-to-sql-agent")
-    .master("local[*]")
-    .getOrCreate()
+
+import requests
+import os
+
+CLOUD_AGENT_URL = os.getenv("CLOUD_AGENT_URL") + "invoke"
+CLOUD_AGENT_API_KEY = os.getenv("CLOUD_AGENT_API_KEY")  # optional
+
+def call_cloud_agent(question: str) -> dict:
+    print(">>> call_cloud_agent start")
+    payload = {
+        "request": {
+            "question": question
+        }
+    }
+
+    headers = {
+        "Content-Type": "application/json",
+    }
+
+    # Only include Authorization if you actually enforce it
+    if CLOUD_AGENT_API_KEY:
+        headers["Authorization"] = f"Bearer {CLOUD_AGENT_API_KEY}"
+
+    response = requests.post(
+        CLOUD_AGENT_URL,
+        json=payload,      # <-- IMPORTANT
+        headers=headers,
+        timeout=30,
+    )
+    print(">>> call_cloud_agent got response:", response.status_code)
+    response.raise_for_status()
+    result = response.json()
+    print(">>> call_cloud_agent json:", result)
+    return result
+
+
+def cloud_node(state: State) -> State:
+    result = call_cloud_agent(state["question"])
+    sql = result["sql"].strip().strip("`")
+    return {
+        **state,
+        "sql": result["sql"],
+        "raw_result": result["result"],
+    }
+
+# =========================================================
+# Guardrail Agent (Cloud)
+# =========================================================
+
+def guardrail_node(state: State) -> State:
+    prompt = f"Summarize this SQL query result for an end user:\n\nResult: {state['raw_result']}"
+    print(">>> calling CLOUD_LLM (non-streaming)")
+    response = CLOUD_LLM.invoke(prompt)
+    answer_text = str(response.content).strip()
+    print(">>> CLOUD_LLM done. answer:", answer_text)
+
+    return {
+        **state,
+        "answer": answer_text
+    }
+
+
+
+# =========================================================
+# LangGraph Definition
+# =========================================================
+
+graph = StateGraph(State)
+
+graph.add_node("cloud", cloud_node)
+graph.add_node("guardrail", guardrail_node)
+
+graph.set_entry_point("cloud")
+graph.add_edge("cloud", "guardrail")
+graph.add_edge("guardrail", END)
+
+langgraph_app = graph.compile()
+
+# =========================================================
+# Gradio UI
+# =========================================================
+
+'''def ask(question: str) -> str:
+    result = langgraph_app.invoke({"question": question}, stream=False)
+    print("ask() full result:", result)
+
+    # If LangGraph returns node outputs nested:
+    if "guardrail" in result and "answer" in result["guardrail"]:
+        return result["guardrail"]["answer"]
+
+    return "No result returned"'''
+
+def ask(question: str) -> str:
+    # Invoke LangGraph in non-streaming mode
+    '''result = langgraph_app.invoke({"question": question}, stream=False)
+    print("ask() full result:", result, type(result))
+    print(json.dumps(result, indent=2))'''
+    result = [{"count(1)": 10000}]
+    # Extract answer from the guardrail node
+    guardrail_result = result.get("guardrail", {})
+    answer_text = guardrail_result.get("answer", "No result returned")
+
+    return answer_text
+
+
+
+demo = gr.Interface(
+    fn=ask,
+    inputs=gr.Textbox(label="Ask a question"),
+    outputs=gr.Textbox(label="Answer"),
+    title="Cloud ↔ On-Prem A2A Demo",
 )
 
-# Optional: limit runaway queries during demos
-# spark.conf.set("spark.sql.shuffle.partitions", "10")
-# spark.conf.set("spark.executor.cores", 4)
-# spark.conf.set("spark.executor.memory", "8g")
-
-# =========================================================
-# Spark SQL Executor
-# =========================================================
-def run_spark_sql(sql: str) -> list[dict]:
-    """
-    Execute Spark SQL and return a safe, truncated JSON result.
-    """
-    sql = sql.strip().strip("`")
-    df = spark.sql(sql)
-
-    # Limit rows
-    MAX_ROWS = 20
-    df = df.limit(MAX_ROWS)
-
-    # Optional: truncate columns to avoid huge payloads
-    MAX_COLS = 8
-    df = df.select(df.columns[:MAX_COLS])
-
-    # Convert to list of dicts for JSON
-    rows = df.toPandas().to_dict(orient="records")
-
-    print(f"[Spark] Returning {len(rows)} rows with {len(df.columns)} columns")  # logging
-    return rows
-
-
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-
-# =========================================================
-# Agent Endpoint
-# =========================================================
-@app.post("/invoke")
-def invoke(payload: dict):
-    print(">>> invoke called")
-    question = payload.get("request", {}).get("question", "")
-    if not question:
-        return {"error": "Missing question in payload"}
-
-    print(">>> question:", question)
-
-    prompt = f"""
-You are a Text-to-SQL agent.
-
-Your task:
-- Convert the user's question into a Spark SQL query.
-- The query will be executed using Spark SQL.
-- Use ONLY the table described below.
-- Do NOT hallucinate columns or tables.
-- Do NOT include explanations.
-
-Table:
-TableTest
-
-Schema:
-- age FLOAT
-- credit_card_balance FLOAT
-- bank_account_balance FLOAT
-- mortgage_balance FLOAT
-- sec_bank_account_balance FLOAT
-- savings_account_balance FLOAT
-- sec_savings_account_balance FLOAT
-- total_est_nworth FLOAT
-- primary_loan_balance FLOAT
-- secondary_loan_balance FLOAT
-- uni_loan_balance FLOAT
-- longitude FLOAT
-- latitude FLOAT
-- transaction_amount FLOAT
-- fraud_trx INT   -- 1 = fraud, 0 = non-fraud
-
-Rules:
-- Use valid Spark SQL
-- Return ONLY the SQL statement
-
-User question:
-{question}
-"""
-    print(">>> calling LLM")
-    sql = LLM.invoke(prompt).content.strip()
-    print(">>> generated SQL:", sql)
-    print(">>> LLM done")
-    print(">>> running spark")
-    result = run_spark_sql(sql)
-    print(">>> spark done")
-
-    return {"sql": sql, "result": result}
-
-# =========================================================
-# Start the server (safe for Cloudera AI container)
-# =========================================================
-def run_server():
-    uvicorn.run(app, host="127.0.0.1", port=int(os.environ['CDSW_APP_PORT']), log_level="warning", reload=False)
-
-server_thread = threading.Thread(target=run_server)
-server_thread.start()
+demo.launch(
+    share=False,
+    show_error=True,
+    server_name="127.0.0.1",
+    server_port=int(os.getenv("CDSW_APP_PORT")),
+)
