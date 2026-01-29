@@ -20,7 +20,10 @@ LLM = ChatOpenAI(
     model=os.getenv("ON_PREM_MODEL_ID"),
     api_key=os.getenv("ON_PREM_MODEL_KEY"),
     base_url=os.getenv("ON_PREM_MODEL_ENDPOINT"),
+    timeout=15,
+    max_retries=1,
 )
+
 
 # =========================================================
 # Spark Session (shared, created once)
@@ -57,9 +60,12 @@ def health():
 # =========================================================
 @app.post("/invoke")
 def invoke(payload: dict):
+    print(">>> invoke called")
     question = payload.get("request", {}).get("question", "")
     if not question:
         return {"error": "Missing question in payload"}
+
+    print(">>> question:", question)
 
     prompt = f"""
 You are a Text-to-SQL agent.
@@ -98,8 +104,12 @@ Rules:
 User question:
 {question}
 """
+    print(">>> calling LLM")
     sql = LLM.invoke(prompt).content.strip()
+    print(">>> LLM done")
+    print(">>> running spark")
     result = run_spark_sql(sql)
+    print(">>> spark done")
 
     return {"sql": sql, "result": result}
 
