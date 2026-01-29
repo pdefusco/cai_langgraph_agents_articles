@@ -86,22 +86,10 @@ def cloud_node(state: State) -> State:
 # =========================================================
 
 def guardrail_node(state: State) -> State:
-    prompt = f"""
-You are a guardrail agent.
-
-- Ensure the answer is safe
-- Ensure no sensitive data is exposed
-- Summarize clearly for an end user
-
-SQL:
-{state['sql']}
-
-Result:
-{state['raw_result']}
-"""
-    print(">>> calling CLOUD_LLM")
+    prompt = f"Summarize this SQL query result for an end user:\n\nResult: {state['raw_result']}"
+    print(">>> calling CLOUD_LLM (non-streaming)")
     response = CLOUD_LLM.invoke(prompt)
-    answer_text = str(response.content).strip().strip("`")  # ensure it's a string
+    answer_text = str(response.content).strip()
     print(">>> CLOUD_LLM done. answer:", answer_text)
 
     return {
@@ -109,9 +97,6 @@ Result:
         "answer": answer_text
     }
 
-'''def guardrail_node(state: State) -> State:
-    print(">>> guardrail_node state:", state)
-    return {**state, "answer": str(state["raw_result"])}'''
 
 
 # =========================================================
@@ -133,7 +118,7 @@ langgraph_app = graph.compile()
 # Gradio UI
 # =========================================================
 
-def ask(question: str) -> str:
+'''def ask(question: str) -> str:
     result = langgraph_app.invoke({"question": question}, stream=False)
     print("ask() full result:", result)
 
@@ -141,15 +126,15 @@ def ask(question: str) -> str:
     if "guardrail" in result and "answer" in result["guardrail"]:
         return result["guardrail"]["answer"]
 
-    return "No result returned"
+    return "No result returned"'''
 
 
 
-'''def ask(question: str) -> str:
+def ask(question: str) -> str:
     # Invoke LangGraph in non-streaming mode
     result = langgraph_app.invoke({"question": question}, stream=False)
     print("ask() got final result:", result)
-    return result.get("answer", "No result returned")'''
+    return result.get("answer", "No result returned")
 
 
 demo = gr.Interface(
