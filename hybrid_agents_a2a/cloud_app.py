@@ -16,7 +16,7 @@ app = FastAPI()
 # =========================================================
 # Contract / Access Control
 # =========================================================
-ALLOWED_TABLES = {"DataLakeTable"}
+ALLOWED_TABLES = {"DataLakeEtl"}
 
 # =========================================================
 # On-prem Nemotron (OpenAI-compatible)

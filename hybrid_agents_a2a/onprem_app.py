@@ -49,7 +49,7 @@ def call_cloud_agent(question: str) -> dict:
 
     payload = {
         "contract": {
-            "requested_tables": ["DataLakeTable"]
+            "requested_tables": ["DataLakeEtl"]
         },
         "request": {
             "question": question
@@ -90,7 +90,7 @@ def cloud_node(state: State) -> State:
 # =========================================================
 
 def detect_table_mentions(question: str) -> set[str]:
-    KNOWN_TABLES = {"DataLakeTable", "TableTest"}
+    KNOWN_TABLES = {"DataLakeEtl", "TableTest"}
     return {t for t in KNOWN_TABLES if t.lower() in question.lower()}
 
 def guardrail_node(state: State) -> State:
@@ -124,7 +124,7 @@ langgraph_app = graph.compile()
 # Gradio UI
 # =========================================================
 
-AUTHORIZED_TABLES = {"DataLakeTable"}
+AUTHORIZED_TABLES = {"DataLakeEtl"}
 
 def ask(question: str) -> str:
     # Invoke LangGraph in non-streaming mode
