@@ -41,8 +41,8 @@ class State(TypedDict):
 import requests
 import os
 
-CLOUD_AGENT_URL = os.getenv("CLOUD_AGENT_URL") + "invoke"
-CLOUD_AGENT_API_KEY = os.getenv("CLOUD_AGENT_API_KEY")  # optional
+ONPREM_AGENT_URL = os.getenv("ONPREM_AGENT_URL") + "invoke"
+ONPREM_AGENT_API_KEY = os.getenv("ONPREM_AGENT_API_KEY")  # optional
 
 def call_cloud_agent(question: str) -> dict:
     print(">>> call_cloud_agent start")
@@ -60,11 +60,11 @@ def call_cloud_agent(question: str) -> dict:
         "Content-Type": "application/json",
     }
 
-    if CLOUD_AGENT_API_KEY:
-        headers["Authorization"] = f"Bearer {CLOUD_AGENT_API_KEY}"
+    if ONPREM_AGENT_API_KEY:
+        headers["Authorization"] = f"Bearer {ONPREM_AGENT_API_KEY}"
 
     response = requests.post(
-        CLOUD_AGENT_URL,
+        ONPREM_AGENT_URL,
         json=payload,
         headers=headers,
         timeout=30,
