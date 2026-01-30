@@ -124,24 +124,17 @@ langgraph_app = graph.compile()
 # Gradio UI
 # =========================================================
 
-'''def ask(question: str) -> str:
-    result = langgraph_app.invoke({"question": question}, stream=False)
-    print("ask() full result:", result)
-
-    # If LangGraph returns node outputs nested:
-    if "guardrail" in result and "answer" in result["guardrail"]:
-        return result["guardrail"]["answer"]
-
-    return "No result returned"'''
-
 def ask(question: str) -> str:
     # Invoke LangGraph in non-streaming mode
     mentioned = detect_table_mentions(question)
 
-    if mentioned and mentioned != {"TableTest"}:
+    unauthorized = mentioned - AUTHORIZED_TABLES
+    if unauthorized:
         return (
-            "You’re currently authorized to query TableTest only. "
-            f"Your question mentions: {', '.join(mentioned)}."
+            "Access denied.\n\n"
+            f"You are not authorized to query the following table(s): "
+            f"{', '.join(sorted(unauthorized))}.\n\n"
+            f"Authorized tables: {', '.join(sorted(AUTHORIZED_TABLES))}."
         )
 
     result = langgraph_app.invoke({"question": question}, stream=False)

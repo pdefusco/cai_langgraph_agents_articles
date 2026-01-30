@@ -69,6 +69,17 @@ def run_spark_sql(sql: str) -> list[dict]:
     print(f"[Spark] Returning {len(rows)} rows with {len(df.columns)} columns")  # logging
     return rows
 
+
+# =========================================================
+# Enforce SQL Permissions
+# =========================================================
+def validate_sql_tables(sql: str, allowed_tables: set[str]):
+    sql_lower = sql.lower()
+    for table in allowed_tables:
+        if table.lower() in sql_lower:
+            return
+    raise ValueError("SQL violates table access contract")
+
 # =========================================================
 # Health Endpoint
 # =========================================================
@@ -160,6 +171,14 @@ User question:
 
     print(">>> calling LLM")
     sql = LLM.invoke(prompt).content.strip()
+    try:
+        validate_sql_tables(sql, {table_name})
+    except ValueError:
+        return {
+            "error": "Generated SQL references a table not allowed by the contract",
+            "allowed_tables": [table_name],
+        }
+
     print(">>> generated SQL:", sql)
 
     print(">>> running spark")
