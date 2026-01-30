@@ -106,6 +106,7 @@ Kernel: PBJ Workbench	Python 3.10	Standard 2025.09
 Spark Runtime Addon: Spark 3.5.1
 Resource Profile: 2 vCPU / 8 iGB Mem / 0 GPU
 Script: hybrid_agents_a2a/cloud_app.py
+Allow Unauthenticated Access: Leave unchecked
 ```
 
 ![alt text](img/cloud-app-2.png)
@@ -171,6 +172,7 @@ Kernel: PBJ Workbench	Python 3.10	Standard 2025.09
 Spark Runtime Addon: Spark 3.5.1
 Resource Profile: 2 vCPU / 8 iGB Mem / 0 GPU
 Script: hybrid_agents_a2a/onprem_app.py
+Allow Unauthenticated Access: Leave unchecked
 ```
 
 ![alt text](img/onprem-app-2.png)
