@@ -204,11 +204,14 @@ Open the cloud application logs and explore the python code outputs. The logs co
 
 ## Summary & Next Steps
 
-This demo showcased a hybrid AI multi-agent system operating across on premises and cloud environments. The on prem and cloud agents communicated via the Agent-to-Agent (A2A) protocol, exchanging a formal contract that defined authorized data access. Using this framework, the system safely executed user requests while enforcing governance and security policies. In the Text to SQL scenario, the cloud agent generated queries for the approved table, the on prem agent executed them, and the results were returned in natural language, demonstrating how A2A enables secure, collaborative AI workflows across hybrid infrastructures.
+This demo showcased a hybrid AI multi-agent system operating across on premises and cloud environments. The on prem and cloud agents communicated via the Agent-to-Agent (A2A) protocol, exchanging a formal contract that defined authorized data access. Using this framework, the system safely executed user requests while enforcing governance and security policies.
+
+In this Text to SQL scenario, the cloud agent generated queries for the approved table, the on prem agent executed them, and the results were returned in natural language, demonstrating how A2A enables secure, collaborative AI workflows across hybrid infrastructures.
 
 You built this in Cloudera AI leveraging two Nvidia Nemotron 49B endpoints, LangGraph, and the Cloudera AI Inference Service. This tutorial can serve as a reusable template for use cases leveraging A2A across environments.
 
 **Additional Resources & Tutorials**
+
 Explore these helpful tutorials and blogs to learn more about Cloudera AI, the AI Registry, and AI Inference Service:
 
 1. **Cloudera AI Inference Service – Easy Integration & Deployment**
