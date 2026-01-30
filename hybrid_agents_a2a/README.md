@@ -1,6 +1,6 @@
 # How to Implement a Hybrid Agent A2A Pipeline in CAI with LangGraph, Nvidia Nemotron 49B, and Cloudera AI Inference Service
 
-![alt text](img/spark_self_healing_pipeline_simple_sol_arch.png)
+![alt text](img/a2a-sol-arch.png)
 
 ## Objective
 
