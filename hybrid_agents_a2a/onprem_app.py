@@ -105,8 +105,6 @@ def guardrail_node(state: State) -> State:
         "answer": answer_text
     }
 
-
-
 # =========================================================
 # LangGraph Definition
 # =========================================================
@@ -151,12 +149,8 @@ def ask(question: str) -> str:
     print(json.dumps(result, indent=2))
 
     # Extract answer from the guardrail node
-    guardrail_result = result.get("guardrail", {})
-    answer_text = guardrail_result.get("answer", "No result returned")
-
+    answer_text = result.get("answer", "No result returned")
     return answer_text
-
-
 
 demo = gr.Interface(
     fn=ask,
