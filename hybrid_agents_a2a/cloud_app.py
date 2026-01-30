@@ -22,9 +22,9 @@ ALLOWED_TABLES = {"DataLakeEtl"}
 # On-prem Nemotron (OpenAI-compatible)
 # =========================================================
 LLM = ChatOpenAI(
-    model=os.getenv("ON_PREM_MODEL_ID"),
-    api_key=os.getenv("ON_PREM_MODEL_KEY"),
-    base_url=os.getenv("ON_PREM_MODEL_ENDPOINT"),
+    model=os.getenv("CLOUD_MODEL_ID"),
+    api_key=os.getenv("CLOUD_MODEL_KEY"),
+    base_url=os.getenv("CLOUD_MODEL_ENDPOINT"),
     timeout=15,
     max_retries=1,
 )
@@ -35,7 +35,7 @@ LLM = ChatOpenAI(
 # =========================================================
 spark = (
     SparkSession.builder
-    .appName("on-prem-text-to-sql-agent")
+    .appName("A2A-text-to-sql-agent")
     .master("local[*]")
     .getOrCreate()
 )

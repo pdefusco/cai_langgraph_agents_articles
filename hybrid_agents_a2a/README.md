@@ -72,7 +72,7 @@ CLOUD_MODEL_KEY: Enter the CDP Token for Nemotron from the AWS Cloud Inference S
 
 Your environment variables tab should look something like this:
 
-![alt text](img/env-vars-cloud.png)
+![alt text](img/cloud-env-vars.png)
 
 #### 3. Launch a CAI Session and Install Requirements in the On Prem Environment
 
