@@ -17,9 +17,9 @@ CLOUD_AGENT_ACCESS_KEY = os.getenv("CLOUD_AGENT_ACCESS_KEY")
 CLOUD_AGENT_API_KEY = os.getenv("CLOUD_AGENT_API_KEY")
 
 ONPREM_LLM = ChatOpenAI(
-    model=os.getenv("ONPREM_MODEL_ID"),
-    api_key=os.getenv("ONPREM_MODEL_KEY"),
-    base_url=os.getenv("ONPREM_MODEL_ENDPOINT"),
+    model=os.getenv("ON_PREM_MODEL_ID"),
+    api_key=os.getenv("ON_PREM_MODEL_KEY"),
+    base_url=os.getenv("ON_PREM_MODEL_ENDPOINT"),
     http_client=http_client
 )
 
