@@ -49,7 +49,7 @@ def call_cloud_agent(question: str) -> dict:
 
     payload = {
         "contract": {
-            "requested_tables": ["TableTest"]
+            "requested_tables": ["DataLakeTable"]
         },
         "request": {
             "question": question
@@ -90,7 +90,7 @@ def cloud_node(state: State) -> State:
 # =========================================================
 
 def detect_table_mentions(question: str) -> set[str]:
-    KNOWN_TABLES = {"TableTest", "Customers", "Payroll"}
+    KNOWN_TABLES = {"DataLakeTable", "TableTest"}
     return {t for t in KNOWN_TABLES if t.lower() in question.lower()}
 
 def guardrail_node(state: State) -> State:
