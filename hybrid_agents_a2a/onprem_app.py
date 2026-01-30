@@ -124,6 +124,8 @@ langgraph_app = graph.compile()
 # Gradio UI
 # =========================================================
 
+AUTHORIZED_TABLES = {"DataLakeTable"}
+
 def ask(question: str) -> str:
     # Invoke LangGraph in non-streaming mode
     mentioned = detect_table_mentions(question)
