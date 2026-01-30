@@ -72,7 +72,7 @@ CLOUD_MODEL_KEY: Enter the CDP Token for Nemotron from the AWS Cloud Inference S
 
 Your environment variables tab should look something like this:
 
-![alt text](img/env-vars.png)
+![alt text](img/env-vars-cloud.png)
 
 #### 3. Launch a CAI Session and Install Requirements in the On Prem Environment
 
@@ -145,6 +145,10 @@ CLOUD_AGENT_URL: Enter the Application URL as provided in the Cloud Application 
 CLOUD_AGENT_ACCESS_KEY: Optional - Leave blank if you don't have one
 CLOUD_AGENT_API_KEY: Create and enter API Key with Application Permissions in the Cloud Workbench User Settings Tab
 ```
+
+Your environment variables tab should look something like this:
+
+![alt text](img/env-vars-onprem.png)
 
 #### 3. Launch a CAI Session and Install Requirements in the On Prem Environment
 
