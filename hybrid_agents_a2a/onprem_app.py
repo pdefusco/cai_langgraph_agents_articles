@@ -16,10 +16,10 @@ ON_PREM_AGENT_URL = os.getenv("ON_PREM_AGENT_URL")
 ON_PREM_AGENT_ACCESS_KEY = os.getenv("ON_PREM_AGENT_ACCESS_KEY")
 ON_PREM_AGENT_API_KEY = os.getenv("ON_PREM_AGENT_API_KEY")
 
-CLOUD_LLM = ChatOpenAI(
-    model=os.getenv("CLOUD_MODEL_ID"),
-    api_key=os.getenv("CLOUD_MODEL_KEY"),
-    base_url=os.getenv("CLOUD_MODEL_ENDPOINT"),
+ONPREM_LLM = ChatOpenAI(
+    model=os.getenv("ONPREM_MODEL_ID"),
+    api_key=os.getenv("ONPREM_MODEL_KEY"),
+    base_url=os.getenv("ONPREM_MODEL_ENDPOINT"),
     http_client=http_client
 )
 
@@ -95,10 +95,10 @@ def detect_table_mentions(question: str) -> set[str]:
 
 def guardrail_node(state: State) -> State:
     prompt = f"Summarize this SQL query result for an end user:\n\nResult: {state['raw_result']}"
-    print(">>> calling CLOUD_LLM (non-streaming)")
-    response = CLOUD_LLM.invoke(prompt)
+    print(">>> calling ONPREM_LLM (non-streaming)")
+    response = ONPREM_LLM.invoke(prompt)
     answer_text = str(response.content).strip()
-    print(">>> CLOUD_LLM done. answer:", answer_text)
+    print(">>> ONPREM_LLM done. answer:", answer_text)
 
     return {
         **state,
