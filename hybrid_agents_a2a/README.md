@@ -68,7 +68,7 @@ CLOUD_MODEL_ENDPOINT: Enter the Endpoint URL for Nemotron from the AWS Cloud Inf
 CLOUD_MODEL_KEY: Enter the CDP Token for Nemotron from the AWS Cloud Inference Service UI
 ```
 
-![alt text](img/inf-service-ui.png)
+![alt text](img/inf-service-ui-onprem.png)
 
 Your environment variables tab should look something like this:
 
@@ -145,6 +145,8 @@ CLOUD_AGENT_URL: Enter the Application URL as provided in the Cloud Application 
 CLOUD_AGENT_ACCESS_KEY: Optional - Leave blank if you don't have one
 CLOUD_AGENT_API_KEY: Create and enter API Key with Application Permissions in the Cloud Workbench User Settings Tab
 ```
+
+![alt text](img/inf-service-ui-cloud.png)
 
 Your environment variables tab should look something like this:
 
