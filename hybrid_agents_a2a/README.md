@@ -40,9 +40,82 @@ This tutorial does not includes instructions to deploy the AI Registry, Inferenc
 * How to deploy an AI Registry in Cloudera AI: https://docs.cloudera.com/machine-learning/1.5.5/setup-model-registry/topics/ml-setting-up-model-registry.html
 * How to deploy an AI Inference Service in Cloudera AI: https://docs.cloudera.com/machine-learning/1.5.5/setup-cloudera-ai-inference/topics/ml-caii-use-caii.html
 
-### Tutorial
+### Demonstration
 
 All artifacts are included in this Git repository. You can clone or fork it as needed. https://github.com/pdefusco/cai_langgraph_agents_articles.git
+
+### AWS Environment Setups
+
+#### 1. Clone the Git Repository as a CAI Project in the AWS Environment
+
+Create a project with the following entries:
+
+```
+Project Name: Cloud Application
+Project Description: Project to implement a Hybrid A2A MultiAgent System to retrieve remote data sources.
+Initial Setup: -> GIT -> HTTPS -> https://github.com/pdefusco/cai_langgraph_agents_articles.git
+Runtimes:
+  PBJ Workbench	Python 3.10	Standard 2025.09
+```
+
+#### 2. Create the Project Environment Variables with Secrets in the AWS Environment
+
+Ppen the "Project Settings" -> "Advanced" tabs and set the following variables:
+
+```
+CLOUD_MODEL_ID: Enter the Model ID for Nemotron from the AWS Cloud Inference Service UI
+CLOUD_MODEL_ENDPOINT: Enter the Endpoint URL for Nemotron from the AWS Cloud Inference Service UI
+CLOUD_MODEL_KEY: Enter the CDP Token for Nemotron from the AWS Cloud Inference Service UI
+```
+
+![alt text](img/inf-service-ui.png)
+
+Your environment variables tab should look something like this:
+
+![alt text](img/env-vars.png)
+
+#### 3. Launch a CAI Session and Install Requirements in the On Prem Environment
+
+Launch your first CAI Session with PBJ Runtime. You won't need a lot of resources:
+
+```
+Kernel: PBJ Workbench	Python 3.10	Standard 2025.09
+Spark Runtime Addon: Spark 3.5.1
+Resource Profile: 2 vCPU / 8 iGB Mem / 0 GPU
+```
+
+First, install the requirements by opening the Terminal and running this command:
+
+```
+pip3 install -r hybrid_agents_a2a/requirements.txt
+```
+
+#### 4. Run Hive External Table DDL Script
+
+In the CAI Session, open script ```cloud_datagen.py``` and update line 167 according to your environment's Spark Data Connection name. Then run the code as is. When this is finished, update line 192 to "TableTest" and rerun the script.
+
+This will ultimately create two tables, ```DataLakeEtl``` and ```TableTest```.
+
+#### 5. Deploy the Gradio LangGraph MAS as a CAI Application
+
+Navigate to Applications and launch the Gradio LangGraph App with the following settings.
+
+```
+Name: Cloud A2A App
+Kernel: PBJ Workbench	Python 3.10	Standard 2025.09
+Spark Runtime Addon: Spark 3.5.1
+Resource Profile: 2 vCPU / 8 iGB Mem / 0 GPU
+Script: hybrid_agents_a2a/cloud_app.py
+```
+
+![alt text](img/cloud-app-2.png)
+
+Validate the applicaton has deployed successfully.
+
+![alt text](img/cloud-app-1.png)
+
+
+### On Prem Environment Setups
 
 #### 1. Clone the Git Repository as a CAI Project in the On Prem Environment
 
@@ -56,131 +129,23 @@ Runtimes:
   PBJ Workbench	Python 3.10	Standard 2025.09
 ```
 
-#### 2. Create the Project Environment Variables with Secrets
+#### 2. Create the Project Environment Variables with Secrets in the On Prem Environment
 
 Navigate to the AI Inference Service UI and open the model endpoint. Then, copy the Model ID, Endpoint URL and CDP Token to your clipboard.
 
 In the CAI Project Settings, create the following Environment Variables using the values copied above.
 
 ```
-LLM_MODEL_ID: Enter the Model ID for Nemotron from the Inference Service UI
-LLM_ENDPOINT_BASE_URL: Enter the Endpoint URL for Nemotron from the Inference Service UI
-LLM_CDP_TOKEN: Enter the CDP Token for Nemotron from the Inference Service UI
+ON_PREM_MODEL_ID: Enter the Model ID for Nemotron from the On Prem Inference Service UI
+ON_PREM_MODEL_ENDPOINT: Enter the Endpoint URL for Nemotron from the On Prem Inference Service UI
+ON_PREM_MODEL_KEY: Enter the CDP Token for Nemotron from the On Prem Inference Service UI
+
+CLOUD_AGENT_URL: Enter the Application URL as provided in the Cloud Application by opening the application and copying the url from the browser e.g. https://clouds.ml-ca383ab2-1e7.pdf-jan.a465-9q4k.cloudera.site/
+CLOUD_AGENT_ACCESS_KEY: Optional - Leave blank if you don't have one
+CLOUD_AGENT_API_KEY: Create and enter API Key with Application Permissions in the Cloud Workbench User Settings Tab
 ```
 
-#### 3. Create and Launch the CDE Spark Pipeline
-
-Open ```sparkApp.py``` and familiarize yourself with the code. This is a Spark Iceberg application that incrementally generates synthetic data batches and upserts them into a target table using the Iceberg Merge Into. Notice at lines 19-22 the table names are assigned a wrong name. This will be the source of the error.
-
-```
-spark.sql(f"""
-    SELECT customer_id, category, value1, value2
-    FROM {targetTable}
-    """).show()
-```
-
-Next, using the CDE CLI, run the following commands to set up all dependencies required for the Spark Pipeline in CDE.
-
-```
-cde resource create \
-  --name failing-pipeline
-
-cde resource create \
-  --name datagen-env \
-  --type python-env
-
-cde resource upload \
-  --name datagen-env \
-  --local-path cde_dependencies/requirements.txt
-
-cde resource upload \
-  --name failing-pipeline \
-  --local-path sparkApp.py \
-  --local-path datagen.py
-```
-
-Wait for the python environment build to complete. Then create the Incremental Read job.
-
-![alt text](img/env-build-inprogress.png)
-
-![alt text](img/env-build-complete.png)
-
-Create and run the datagen job.
-
-```
-cde job delete \
-  --name datagen
-
-cde job create \
-  --name datagen \
-  --type spark \
-  --application-file datagen.py \
-  --python-env-resource-name datagen-env \
-  --mount-1-resource failing-pipeline \
-  --executor-cores 4 \
-  --executor-memory "8g" \
-  --driver-cores 4 \
-  --driver-memory "4g" \
-  --arg spark_catalog.default.dynamic_incremental_target_table_large_overlap \
-  --arg spark_catalog.default.dynamic_incremental_source_table_large_overlap \
-  --conf spark.dynamicAllocation.minExecutors=1 \
-  --conf spark.dynamicAllocation.maxExecutors=20 \
-  --conf spark.sql.adaptive.enabled=False
-
-cde job run \
-  --name datagen
-```
-
-Once the datagen job has succeeded, create and run the failing-pipeline job.
-
-```
-cde job delete \
-  --name sql-select-fail
-
-cde job create \
-  --name sql-select-fail \
-  --type spark \
-  --application-file sparkApp.py \
-  --python-env-resource-name datagen-env \
-  --mount-1-resource failing-pipeline \
-  --executor-cores 4 \
-  --executor-memory "8g" \
-  --driver-cores 4 \
-  --driver-memory "4g" \
-  --arg spark_catalog.default.dynamic_incremental_target_table_large_overlap \
-  --arg spark_catalog.default.dynamic_incremental_source_table_large_overlap \
-  --conf spark.dynamicAllocation.minExecutors=1 \
-  --conf spark.dynamicAllocation.maxExecutors=20
-
-cde job run \
-  --name sql-select-fail
-```
-
-Visit the CDE Job Runs UI, wait for the job run finish running and confirm it fails. Open the logs tab and investigate the cause of failure.
-
-![alt text](img/sql-select-fail-1.png)
-
-![alt text](img/sql-select-fail-2.png)
-
-```
-driver --proxy-user pauldefusco --properties-file /opt/spark/conf/spark.properties --class org.apache.spark.deploy.PythonRunner file:///app/mount/sparkApp.py spark_catalog.default.dynamic_incremental_target_table_large_overlap spark_catalog.default.dynamic_incremental_source_table_large_overlap
-Traceback (most recent call last):
-  File "/app/mount/sparkApp.py", line 19, in <module>
-    spark.sql(f"""
-  File "/opt/spark/python/lib/pyspark.zip/pyspark/sql/session.py", line 1631, in sql
-  File "/opt/spark/python/lib/py4j-0.10.9.7-src.zip/py4j/java_gateway.py", line 1322, in __call__
-  File "/opt/spark/python/lib/pyspark.zip/pyspark/errors/exceptions/captured.py", line 185, in deco
-pyspark.errors.exceptions.captured.AnalysisException: [UNRESOLVED_COLUMN.WITH_SUGGESTION] A column or function parameter with name `customer_id` cannot be resolved. Did you mean one of the following? [`account_id`, `category`, `value1`, `value2`, `value3`].; line 2 pos 11;
-'Project ['customer_id, category#1, value1#2, value2#3]
-+- SubqueryAlias spark_catalog.default.dynamic_incremental_target_table_large_overlap
-   +- RelationV2[account_id#0L, category#1, value1#2, value2#3, value3#4, value4#5, value5#6, value6#7, value7#8, value8#9, event_ts#10] spark_catalog.default.dynamic_incremental_target_table_large_overlap spark_catalog.default.dynamic_incremental_target_table_large_overlap
-```
-
-As shown by the above error trace, the cause of the failed run is the fact that the Spark SQL statement selected column "customer_id" which does not exist in the table schema. Notice the error trace also provides us with the columns present in the table schema, which includes "account_id".
-
-The objective of the MultiAgent System is for it to recognize that we probably meant to select "account_id", replace the value in the code, and recreate and rerun the job.
-
-#### 4. Launch a CAI Session and Install Requirements for the MAS
+#### 3. Launch a CAI Session and Install Requirements in the On Prem Environment
 
 Launch your first CAI Session with PBJ Runtime. You won't need a lot of resources:
 
@@ -193,83 +158,53 @@ Resource Profile: 2 vCPU / 8 iGB Mem / 0 GPU
 First, install the requirements by opening the Terminal and running this command:
 
 ```
-pip3 install -r spark_self_healing_pipeline_simple/requirements.txt
+pip3 install -r hybrid_agents_a2a/requirements.txt
 ```
 
-#### 5. Set Project Environment Variables
-
-The LangGraph application will rely on a few environment variables to connect to CDE and the LLM endpoint. To set these, open the "Project Settings" -> "Advanced" tabs and set the following variables:
-
-```
-JOBS_API_URL: Obtain from the CDE UI
-WORKLOAD_USER: Your CDP Username
-WORKLOAD_PASSWORD: Your CDP User Password
-
-JOB_NAME: sql-select-fail
-RESOURCE_NAME: failing-pipeline
-APPLICATION_FILE_NAME: sparkApp.py
-
-LLM_MODEL_ID: Obtain from the Model Endpoint UI in the AI Inference Service
-LLM_ENDPOINT_BASE_URL: Obtain from the Model Endpoint UI in the AI Inference Service
-LLM_CDP_TOKEN: Obtain from the Model Endpoint UI in the AI Inference Service
-```
-
-![alt text](img/inf-service-ui.png)
-
-Your environment variables tab should look something like this:
-
-![alt text](img/env-vars.png)
-
-#### 6. Deploy the Gradio LangGraph MAS as a CAI Application
+#### 4. Deploy the Gradio LangGraph MAS as a CAI Application in the On Prem Environment
 
 Navigate to Applications and launch the Gradio LangGraph App with the following settings.
 
 ```
-Name: Continuous Spark Monitoring Agents
+Name: On Prem A2A App
 Kernel: PBJ Workbench	Python 3.10	Standard 2025.09
 Spark Runtime Addon: Spark 3.5.1
 Resource Profile: 2 vCPU / 8 iGB Mem / 0 GPU
-Script: spark_self_healing_pipeline_simple/selfHealingPipeline.py
+Script: hybrid_agents_a2a/onprem_app.py
 ```
 
-![alt text](img/shp_app_settings.png)
+![alt text](img/onprem-app-2.png)
 
 Validate the applicaton has deployed successfully.
 
-![alt text](img/app-deployed-ok.png)
+![alt text](img/onprem-app-1.png)
 
-#### 7. Interact with the Agent App
 
-Open the Application and wait a few seconds until the UI is populated.
+### Interact with the Agent App
 
-At the top, the UI provides information about the original and fixed job including name, dependencies, and confirmation of the new run with the fixed code.
+In the on prem instance open the Application and enter the query ```How many rows in the TableTest table?```. Notice in the output that access is denied. The contract between the two agents excluded the TableTest table from the set of accessible tables.
 
-Towards the middle, the original application code is provided on the left and the remediated application code is shown on the right. Notice the fix is applied at line 21 by replacing the customer_id field with the account_id field in the SQL Select.
+![alt text](img/final_table_test.png)
 
-Finally, at the bottom, the Driver stdout logs from the original application are shown in the box in the left. In the center, the LLM reasoning steps are shown. On the right, a diff between the two application scripts is presented.
+Next, run the query ```How many rows in the DataLakeEtl table?```. Notice this time the query result is shown in the UI. This is because access to the table has been granted by the contract between the two agents.
 
-![alt text](img/gradio_ui.png)
+![alt text](img/final_etl_table.png)
 
-Open the Application History logs to follow along the LangGraph execution.  
 
-![alt text](img/app-execution-0.png)
+To investigate the workflow, open the on prem application logs and explore the python code outputs. The on prem multi-agent system sent a request requesting A2A contract approval to the cloud app where the local multi-agent system leveraged Spark SQL to execute the query. Along the way, the text input was transformed into a SQL query, run as a Spark SQL job, and finally returned to the on prem agent where additional security guardrails were applied to validate the output.
 
-Navigate to the CDE UI, validate the new Spark Job definition, its dependencies, and a follow the new run's progress.
+![alt text](img/final_backend_onprem.png)
 
-![alt text](img/fixed-1.png)
+Open the cloud application logs and explore the python code outputs. The logs confirm that a request with an A2A contract request was received and approved and that the Spark SQL compute took place here.
 
-![alt text](img/fixed-2.png)
-
-![alt text](img/fixed-3.png)
-
-![alt text](img/fixed-4.png)
+![alt text](img/final_backend_cloud.png)
 
 
 ## Summary & Next Steps
 
-In this tutorial, you implemented a MultiAgent System to monitor the status of a Spark application in Cloudera Data Engineering (CDE), have an LLM analyze the code and related logs, create a new version of the application code, and recreate and run the new code in CDE. We call this a "Self Healing Pipeline".
+This demo showcased a hybrid AI multi-agent system operating across on premises and cloud environments. The on prem and cloud agents communicated via the Agent-to-Agent (A2A) protocol, exchanging a formal contract that defined authorized data access. Using this framework, the system safely executed user requests while enforcing governance and security policies. In the Text to SQL scenario, the cloud agent generated queries for the approved table, the on prem agent executed them, and the results were returned in natural language, demonstrating how A2A enables secure, collaborative AI workflows across hybrid infrastructures.
 
-You built this in Cloudera AI leveraging an Nvidia Nemotron 49B endpoint, LangGraph, and the Cloudera AI Inference Service. This tutorial can serve as a reusable template to build MultiAgent Systems that autonomously monitor and fix errors in data engineering pipelines.
+You built this in Cloudera AI leveraging two Nvidia Nemotron 49B endpoints, LangGraph, and the Cloudera AI Inference Service. This tutorial can serve as a reusable template for use cases leveraging A2A across environments.
 
 **Additional Resources & Tutorials**
 Explore these helpful tutorials and blogs to learn more about Cloudera AI, the AI Registry, and AI Inference Service:
