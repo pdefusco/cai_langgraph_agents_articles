@@ -32,6 +32,7 @@ class State(TypedDict):
     sql: str
     raw_result: str
     answer: str
+    table: str
 
 # =========================================================
 # A2A Client Node (Cloud → On-Prem)
@@ -45,7 +46,11 @@ CLOUD_AGENT_API_KEY = os.getenv("CLOUD_AGENT_API_KEY")  # optional
 
 def call_cloud_agent(question: str) -> dict:
     print(">>> call_cloud_agent start")
+
     payload = {
+        "contract": {
+            "requested_tables": ["TableTest"]
+        },
         "request": {
             "question": question
         }
@@ -55,35 +60,38 @@ def call_cloud_agent(question: str) -> dict:
         "Content-Type": "application/json",
     }
 
-    # Only include Authorization if you actually enforce it
     if CLOUD_AGENT_API_KEY:
         headers["Authorization"] = f"Bearer {CLOUD_AGENT_API_KEY}"
 
     response = requests.post(
         CLOUD_AGENT_URL,
-        json=payload,      # <-- IMPORTANT
+        json=payload,
         headers=headers,
         timeout=30,
     )
+
     print(">>> call_cloud_agent got response:", response.status_code)
     response.raise_for_status()
     result = response.json()
     print(">>> call_cloud_agent json:", result)
     return result
 
-
 def cloud_node(state: State) -> State:
     result = call_cloud_agent(state["question"])
-    sql = result["sql"].strip().strip("`")
     return {
         **state,
         "sql": result["sql"],
         "raw_result": result["result"],
+        "table": result["table"],
     }
 
 # =========================================================
 # Guardrail Agent (Cloud)
 # =========================================================
+
+def detect_table_mentions(question: str) -> set[str]:
+    KNOWN_TABLES = {"TableTest", "Customers", "Payroll"}
+    return {t for t in KNOWN_TABLES if t.lower() in question.lower()}
 
 def guardrail_node(state: State) -> State:
     prompt = f"Summarize this SQL query result for an end user:\n\nResult: {state['raw_result']}"
@@ -130,10 +138,18 @@ langgraph_app = graph.compile()
 
 def ask(question: str) -> str:
     # Invoke LangGraph in non-streaming mode
-    '''result = langgraph_app.invoke({"question": question}, stream=False)
+    mentioned = detect_table_mentions(question)
+
+    if mentioned and mentioned != {"TableTest"}:
+        return (
+            "You’re currently authorized to query TableTest only. "
+            f"Your question mentions: {', '.join(mentioned)}."
+        )
+
+    result = langgraph_app.invoke({"question": question}, stream=False)
     print("ask() full result:", result, type(result))
-    print(json.dumps(result, indent=2))'''
-    result = [{"count(1)": 10000}]
+    print(json.dumps(result, indent=2))
+
     # Extract answer from the guardrail node
     guardrail_result = result.get("guardrail", {})
     answer_text = guardrail_result.get("answer", "No result returned")

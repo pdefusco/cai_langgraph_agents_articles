@@ -14,6 +14,11 @@ import threading
 app = FastAPI()
 
 # =========================================================
+# Contract / Access Control
+# =========================================================
+ALLOWED_TABLES = {"TableTest"}
+
+# =========================================================
 # On-prem Nemotron (OpenAI-compatible)
 # =========================================================
 LLM = ChatOpenAI(
@@ -64,8 +69,9 @@ def run_spark_sql(sql: str) -> list[dict]:
     print(f"[Spark] Returning {len(rows)} rows with {len(df.columns)} columns")  # logging
     return rows
 
-
-
+# =========================================================
+# Health Endpoint
+# =========================================================
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -76,12 +82,44 @@ def health():
 @app.post("/invoke")
 def invoke(payload: dict):
     print(">>> invoke called")
+
+    # -----------------------------
+    # Validate contract
+    # -----------------------------
+    contract = payload.get("contract")
+    if not contract:
+        return {"error": "Missing contract"}
+
+    requested_tables = set(contract.get("requested_tables", []))
+    if not requested_tables:
+        return {"error": "Contract must specify requested_tables"}
+
+    unauthorized = requested_tables - ALLOWED_TABLES
+    if unauthorized:
+        return {
+            "error": "Unauthorized table access",
+            "unauthorized_tables": list(unauthorized),
+        }
+
+    # Enforce single-table access (optional but recommended)
+    if len(requested_tables) != 1:
+        return {"error": "Only one table may be requested"}
+
+    table_name = next(iter(requested_tables))
+    print(f">>> contract approved for table: {table_name}")
+
+    # -----------------------------
+    # Extract question
+    # -----------------------------
     question = payload.get("request", {}).get("question", "")
     if not question:
         return {"error": "Missing question in payload"}
 
     print(">>> question:", question)
 
+    # -----------------------------
+    # Prompt (bound to contract)
+    # -----------------------------
     prompt = f"""
 You are a Text-to-SQL agent.
 
@@ -92,8 +130,8 @@ Your task:
 - Do NOT hallucinate columns or tables.
 - Do NOT include explanations.
 
-Table:
-TableTest
+Authorized Table (from contract):
+{table_name}
 
 Schema:
 - age FLOAT
@@ -110,7 +148,7 @@ Schema:
 - longitude FLOAT
 - latitude FLOAT
 - transaction_amount FLOAT
-- fraud_trx INT   -- 1 = fraud, 0 = non-fraud
+- fraud_trx INT
 
 Rules:
 - Use valid Spark SQL
@@ -119,15 +157,21 @@ Rules:
 User question:
 {question}
 """
+
     print(">>> calling LLM")
     sql = LLM.invoke(prompt).content.strip()
     print(">>> generated SQL:", sql)
-    print(">>> LLM done")
+
     print(">>> running spark")
     result = run_spark_sql(sql)
     print(">>> spark done")
 
-    return {"sql": sql, "result": result}
+    return {
+        "sql": sql,
+        "result": result,
+        "table": table_name,
+    }
+
 
 # =========================================================
 # Start the server (safe for Cloudera AI container)
