@@ -12,9 +12,9 @@ http_client = httpx.Client(verify=False)
 # Configuration
 # =========================================================
 
-ON_PREM_AGENT_URL = os.getenv("ON_PREM_AGENT_URL")
-ON_PREM_AGENT_ACCESS_KEY = os.getenv("ON_PREM_AGENT_ACCESS_KEY")
-ON_PREM_AGENT_API_KEY = os.getenv("ON_PREM_AGENT_API_KEY")
+CLOUD_AGENT_URL = os.getenv("CLOUD_AGENT_URL")
+CLOUD_AGENT_ACCESS_KEY = os.getenv("CLOUD_AGENT_ACCESS_KEY")
+CLOUD_AGENT_API_KEY = os.getenv("CLOUD_AGENT_API_KEY")
 
 ONPREM_LLM = ChatOpenAI(
     model=os.getenv("ONPREM_MODEL_ID"),
@@ -41,8 +41,8 @@ class State(TypedDict):
 import requests
 import os
 
-ON_PREM_AGENT_URL = os.getenv("ON_PREM_AGENT_URL") + "invoke"
-ON_PREM_AGENT_API_KEY = os.getenv("ON_PREM_AGENT_API_KEY")  # optional
+CLOUD_AGENT_URL = os.getenv("CLOUD_AGENT_URL") + "invoke"
+CLOUD_AGENT_API_KEY = os.getenv("CLOUD_AGENT_API_KEY")  # optional
 
 def call_cloud_agent(question: str) -> dict:
     print(">>> call_cloud_agent start")
@@ -60,11 +60,11 @@ def call_cloud_agent(question: str) -> dict:
         "Content-Type": "application/json",
     }
 
-    if ON_PREM_AGENT_API_KEY:
-        headers["Authorization"] = f"Bearer {ON_PREM_AGENT_API_KEY}"
+    if CLOUD_AGENT_API_KEY:
+        headers["Authorization"] = f"Bearer {CLOUD_AGENT_API_KEY}"
 
     response = requests.post(
-        ON_PREM_AGENT_URL,
+        CLOUD_AGENT_URL,
         json=payload,
         headers=headers,
         timeout=30,
