@@ -13,6 +13,7 @@ from cdepy import (
     cdejob,
     cderesource
 )
+from openai import OpenAI
 
 # -------------------------------------------------------------------
 # Configuration
@@ -27,11 +28,14 @@ WORKLOAD_PASSWORD = os.environ["WORKLOAD_PASSWORD"]
 
 JOB_NAME = os.environ["JOB_NAME"]
 RESOURCE_NAME = os.environ["RESOURCE_NAME"]
-#APPLICATION_FILE_NAME = os.environ["APPLICATION_FILE_NAME"]
 
 LLM_MODEL_ID = os.environ["LLM_MODEL_ID"]
 LLM_ENDPOINT_BASE_URL = os.environ["LLM_ENDPOINT_BASE_URL"]
 LLM_CDP_TOKEN = os.environ["LLM_CDP_TOKEN"]
+
+EMBEDDING_MODEL_ID = os.environ["EMBEDDING_MODEL_ID"]
+EMBEDDING_ENDPOINT_BASE_URL = os.environ["EMBEDDING_ENDPOINT_BASE_URL"]
+EMBEDDING_CDP_TOKEN = os.environ["EMBEDDING_CDP_TOKEN"]
 
 CHROMA_DIR = "/home/cdsw/chroma"
 COLLECTION_NAME = "spark_submit_cde_mappings"
@@ -66,11 +70,30 @@ llm = ChatOpenAI(
 # Chroma (existing collection)
 # -------------------------------------------------------------------
 
-chroma_client = chromadb.PersistentClient(path=CHROMA_DIR)
+from chromadb.api.models import Collection
 
-spark_submit_collection = chroma_client.get_collection(
-    COLLECTION_NAME
+llmClient = OpenAI(
+    base_url=EMBEDDING_ENDPOINT_BASE_URL,
+    api_key=EMBEDDING_CDP_TOKEN,
 )
+
+def get_passage_embedding(text: str):
+    return llmClient.embeddings.create(
+        input=text,
+        model=EMBEDDING_MODEL_ID,
+        extra_body={"input_type": "passage"},
+    ).data[0].embedding
+
+def retrieve_examples(state: AgentState) -> AgentState:
+    # Pass the embedding function explicitly to query
+    results = spark_submit_collection.query(
+        query_texts=[state.spark_submit],
+        n_results=3,
+        embedding_function=get_passage_embedding
+    )
+
+    state.rag_examples = results["documents"][0]
+    return state
 
 # -------------------------------------------------------------------
 # Schemas
@@ -116,9 +139,11 @@ class AgentState(BaseModel):
 
     errors: List[str] = []
 
+
 class GeneratedCdeSpecs(BaseModel):
     cde_files_resource: CdeFilesResourceSpec
     cde_spark_job: CdeSparkJobSpec
+
 
 class ParsedSparkSubmitOutput(BaseModel):
     executor_memory: str | None
@@ -133,7 +158,6 @@ class ParsedSparkSubmitOutput(BaseModel):
 # -------------------------------------------------------------------
 
 structured_cde_llm = llm.with_structured_output(GeneratedCdeSpecs)
-
 structured_parse_llm = llm.with_structured_output(ParsedSparkSubmitOutput)
 
 
@@ -160,17 +184,6 @@ def parse_spark_submit(state: AgentState) -> AgentState:
         args=result.args
     )
 
-    return state
-
-
-
-def retrieve_examples(state: AgentState) -> AgentState:
-    results = spark_submit_collection.query(
-        query_texts=[state.spark_submit],
-        n_results=3
-    )
-
-    state.rag_examples = results["documents"][0]
     return state
 
 
