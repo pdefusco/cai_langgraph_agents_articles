@@ -1,7 +1,7 @@
 langgraph>=0.1.9
 langchain-openai>=0.1.14
 openai>=1.0.0
-cdepy>=0.8.0
+cdepy
 chromadb>=0.6.5
 gradio>=3.41.0
 pydantic>=2.3.0
