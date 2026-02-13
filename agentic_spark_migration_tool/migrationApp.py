@@ -66,34 +66,6 @@ llm = ChatOpenAI(
     temperature=0.2,
 )
 
-# -------------------------------------------------------------------
-# Chroma (existing collection)
-# -------------------------------------------------------------------
-
-from chromadb.api.models import Collection
-
-llmClient = OpenAI(
-    base_url=EMBEDDING_ENDPOINT_BASE_URL,
-    api_key=EMBEDDING_CDP_TOKEN,
-)
-
-def get_passage_embedding(text: str):
-    return llmClient.embeddings.create(
-        input=text,
-        model=EMBEDDING_MODEL_ID,
-        extra_body={"input_type": "passage"},
-    ).data[0].embedding
-
-def retrieve_examples(state: AgentState) -> AgentState:
-    # Pass the embedding function explicitly to query
-    results = spark_submit_collection.query(
-        query_texts=[state.spark_submit],
-        n_results=3,
-        embedding_function=get_passage_embedding
-    )
-
-    state.rag_examples = results["documents"][0]
-    return state
 
 # -------------------------------------------------------------------
 # Schemas
@@ -151,6 +123,36 @@ class ParsedSparkSubmitOutput(BaseModel):
     num_executors: int | None
     spark_conf: Dict[str, str]
     args: List[str]
+
+
+# -------------------------------------------------------------------
+# Chroma (existing collection)
+# -------------------------------------------------------------------
+
+from chromadb.api.models import Collection
+
+llmClient = OpenAI(
+    base_url=EMBEDDING_ENDPOINT_BASE_URL,
+    api_key=EMBEDDING_CDP_TOKEN,
+)
+
+def get_passage_embedding(text: str):
+    return llmClient.embeddings.create(
+        input=text,
+        model=EMBEDDING_MODEL_ID,
+        extra_body={"input_type": "passage"},
+    ).data[0].embedding
+
+def retrieve_examples(state: AgentState) -> AgentState:
+    # Pass the embedding function explicitly to query
+    results = spark_submit_collection.query(
+        query_texts=[state.spark_submit],
+        n_results=3,
+        embedding_function=get_passage_embedding
+    )
+
+    state.rag_examples = results["documents"][0]
+    return state
 
 
 # -------------------------------------------------------------------
