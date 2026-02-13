@@ -63,12 +63,6 @@ llm = ChatOpenAI(
 )
 
 # -------------------------------------------------------------------
-# Structured LLM for CDE Specs
-# -------------------------------------------------------------------
-
-structured_cde_llm = llm.with_structured_output(GeneratedCdeSpecs)
-
-# -------------------------------------------------------------------
 # Chroma (existing collection)
 # -------------------------------------------------------------------
 
@@ -125,6 +119,12 @@ class AgentState(BaseModel):
 class GeneratedCdeSpecs(BaseModel):
     cde_files_resource: CdeFilesResourceSpec
     cde_spark_job: CdeSparkJobSpec
+
+# -------------------------------------------------------------------
+# Structured LLM for CDE Specs
+# -------------------------------------------------------------------
+
+structured_cde_llm = llm.with_structured_output(GeneratedCdeSpecs)
 
 
 # -------------------------------------------------------------------
