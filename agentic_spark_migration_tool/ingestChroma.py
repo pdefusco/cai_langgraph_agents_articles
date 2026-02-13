@@ -25,7 +25,7 @@ CHROMA_DIR = os.path.abspath("/home/cdsw/chroma")
 os.makedirs(CHROMA_DIR, exist_ok=True)
 
 MAPPING_DOC_PATH = os.path.abspath(
-    "/home/cdsw/migration.txt"
+    "/home/cdsw/agentic_spark_migration_tool/migration.txt"
 )
 
 COLLECTION_NAME = "spark_submit_cde_mappings"
