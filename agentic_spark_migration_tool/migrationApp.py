@@ -52,6 +52,8 @@ def init_cde():
     CDE_CONNECTION.setToken()
     CDE_MANAGER = cdemanager.CdeClusterManager(CDE_CONNECTION)
 
+init_cde()
+
 # -------------------------------------------------------------------
 # LLM
 # -------------------------------------------------------------------
@@ -237,7 +239,8 @@ def validate_specs(state: AgentState) -> AgentState:
 
 
 def execute_cde(state: AgentState) -> AgentState:
-    manager = MANAGER
+
+    manager = CDE_MANAGER  # use global initialized manager
 
     # Create resource
     resource = cderesource.CdeFilesResource(
@@ -249,12 +252,13 @@ def execute_cde(state: AgentState) -> AgentState:
     # Upload script
     manager.uploadFileToResource(
         state.resource_spec.resource_name,
-        SCRIPTS_DIR,
+        os.path.dirname(state.local_script_path),
         state.script_name
     )
 
     # Create job
-    spark_job = cdejob.CdeSparkJob(myCdeConnection)
+    spark_job = cdejob.CdeSparkJob(CDE_CONNECTION)
+
     job_def = spark_job.createJobDefinition(
         state.job_spec.job_name,
         state.job_spec.resource_name,
@@ -265,7 +269,9 @@ def execute_cde(state: AgentState) -> AgentState:
     )
 
     manager.createJob(job_def)
+
     return state
+
 
 # -------------------------------------------------------------------
 # LangGraph wiring
@@ -299,13 +305,13 @@ agent = graph.compile()
 # -------------------------------------------------------------------
 
 def run_agent(spark_submit_text, pyspark_file):
-    script_path = os.path.join(SCRIPTS_DIR, pyspark_file.name)
-    shutil.copy(pyspark_file.name, script_path)
+
+    filename = os.path.basename(pyspark_file.name)
 
     state = AgentState(
         spark_submit=spark_submit_text,
-        script_name=pyspark_file.name,
-        local_script_path=script_path,
+        script_name=filename,
+        local_script_path=pyspark_file.name,
         job_name=JOB_NAME,
         resource_name=RESOURCE_NAME
     )
