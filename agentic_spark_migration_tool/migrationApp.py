@@ -129,8 +129,10 @@ class ParsedSparkSubmitOutput(BaseModel):
 # Chroma (existing collection)
 # -------------------------------------------------------------------
 
+from openai import OpenAI
 from chromadb.api.models import Collection
 
+# OpenAI-style embedding client
 llmClient = OpenAI(
     base_url=EMBEDDING_ENDPOINT_BASE_URL,
     api_key=EMBEDDING_CDP_TOKEN,
@@ -143,8 +145,14 @@ def get_passage_embedding(text: str):
         extra_body={"input_type": "passage"},
     ).data[0].embedding
 
+# Chroma client and collection
+client = chromadb.PersistentClient(path=CHROMA_DIR)
+
+spark_submit_collection = client.get_or_create_collection(
+    name=COLLECTION_NAME
+)
+
 def retrieve_examples(state: AgentState) -> AgentState:
-    # Pass the embedding function explicitly to query
     results = spark_submit_collection.query(
         query_texts=[state.spark_submit],
         n_results=3,
@@ -153,6 +161,7 @@ def retrieve_examples(state: AgentState) -> AgentState:
 
     state.rag_examples = results["documents"][0]
     return state
+
 
 
 # -------------------------------------------------------------------
