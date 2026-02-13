@@ -153,15 +153,18 @@ spark_submit_collection = client.get_or_create_collection(
 )
 
 def retrieve_examples(state: AgentState) -> AgentState:
+    # Compute embedding for the query
+    query_embedding = get_passage_embedding(state.spark_submit)
+
+    # Query Chroma using the precomputed embedding
     results = spark_submit_collection.query(
-        query_texts=[state.spark_submit],
-        n_results=3,
-        embedding_function=get_passage_embedding
+        query_embeddings=[query_embedding],
+        n_results=3
     )
 
-    state.rag_examples = results["documents"][0]
+    # results["documents"] is a list of lists, one per query
+    state.rag_examples = results["documents"][0] if results["documents"] else []
     return state
-
 
 
 # -------------------------------------------------------------------
