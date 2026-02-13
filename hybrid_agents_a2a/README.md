@@ -60,7 +60,7 @@ Runtimes:
 
 #### 2. Create the Project Environment Variables with Secrets in the AWS Environment
 
-Ppen the "Project Settings" -> "Advanced" tabs and set the following variables:
+Open the "Project Settings" -> "Advanced" tabs and set the following variables:
 
 ```
 CLOUD_MODEL_ID: Enter the Model ID for Nemotron from the AWS Cloud Inference Service UI
