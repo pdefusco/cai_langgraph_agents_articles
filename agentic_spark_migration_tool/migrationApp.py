@@ -26,7 +26,7 @@ WORKLOAD_PASSWORD = os.environ["WORKLOAD_PASSWORD"]
 
 JOB_NAME = os.environ["JOB_NAME"]
 RESOURCE_NAME = os.environ["RESOURCE_NAME"]
-APPLICATION_FILE_NAME = os.environ["APPLICATION_FILE_NAME"]
+#APPLICATION_FILE_NAME = os.environ["APPLICATION_FILE_NAME"]
 
 LLM_MODEL_ID = os.environ["LLM_MODEL_ID"]
 LLM_ENDPOINT_BASE_URL = os.environ["LLM_ENDPOINT_BASE_URL"]
@@ -153,51 +153,50 @@ def retrieve_examples(state: AgentState) -> AgentState:
 
 def generate_cde_specs(state: AgentState) -> AgentState:
     prompt = f"""
-You are a Python coding agent tasked with creating Cloudera Data Engineering (CDE) Spark jobs
-using the cdepy library. You will be given retrieved documents from a vector database.
-These documents are canonical examples of spark-submit commands mapped to CDE job resources,
-job definitions, and cdepy execution sequences.
+    You are a Python coding agent tasked with creating Cloudera Data Engineering (CDE) Spark jobs
+    using the cdepy library. You will be given retrieved documents from a vector database.
+    These documents are canonical examples of spark-submit commands mapped to CDE job resources,
+    job definitions, and cdepy execution sequences.
 
-Your job is to:
+    Your job is to:
 
-1. Follow the retrieved examples exactly for structure and ordering.
-2. Ensure all resource → upload → job creation steps are preserved.
-3. Map --conf flags from the spark-submit input only to the sparkConf dictionary in cdepy.
-4. Use cdepy.CdeFilesResource and cdepy.CdeSparkJob methods as in the examples; do not invent new methods.
-5. Include a TODO comment if any required information is missing from the input.
-6. Keep the output executable and deterministic-friendly; do not hallucinate filenames, resources, or configs.
+    1. Follow the retrieved examples exactly for structure and ordering.
+    2. Ensure all resource → upload → job creation steps are preserved.
+    3. Map --conf flags from the spark-submit input only to the sparkConf dictionary in cdepy.
+    4. Use cdepy.CdeFilesResource and cdepy.CdeSparkJob methods as in the examples; do not invent new methods.
+    5. Include a TODO comment if any required information is missing from the input.
+    6. Keep the output executable and deterministic-friendly; do not hallucinate filenames, resources, or configs.
 
-The job_name and resource_name are already provided.
-You MUST use them exactly as given. Do NOT modify them.
+    The job_name and resource_name are already provided.
+    You MUST use them exactly as given. Do NOT modify them.
 
-Retrieved examples:
-{state.rag_examples}
+    Retrieved examples:
+    {state.rag_examples}
 
-Parsed spark-submit:
-{state.parsed_submit.model_dump()}
+    Parsed spark-submit:
+    {state.parsed_submit.model_dump()}
 
-Uploaded PySpark script:
-{state.script_name}
+    Uploaded PySpark script:
+    {state.script_name}
 
-Return JSON only in the following format:
-{
-  "cde_files_resource": {
-    "resource_name": "{state.resource_name}",
-    "local_files": ["{state.script_name}"]
-  },
-  "cde_spark_job": {
-    "job_name": "{state.job_name}",
-    "resource_name": "{state.resource_name}",
-    "application_file": "{state.script_name}",
-    "executorMemory": "...",
-    "executorCores": ...,
-    "numExecutors": ...,
-    "spark_conf": {},
-    "args": []
-  }
-}
-
-"""
+    Return JSON only in the following format:
+    {
+      "cde_files_resource": {
+        "resource_name": "{state.resource_name}",
+        "local_files": ["{state.script_name}"]
+      },
+      "cde_spark_job": {
+        "job_name": "{state.job_name}",
+        "resource_name": "{state.resource_name}",
+        "application_file": "{state.script_name}",
+        "executorMemory": "...",
+        "executorCores": ...,
+        "numExecutors": ...,
+        "spark_conf": {{}},
+        "args": []
+      }
+    }
+    """
     response = llm.invoke(prompt).content
     data = eval(response)  # trusted environment assumption
 
@@ -226,7 +225,7 @@ def validate_specs(state: AgentState) -> AgentState:
 
 
 def execute_cde(state: AgentState) -> AgentState:
-    manager = cdemanager.CdeClusterManager(myCdeConnection)
+    manager = MANAGER
 
     # Create resource
     resource = cderesource.CdeFilesResource(
