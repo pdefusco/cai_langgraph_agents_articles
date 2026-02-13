@@ -343,4 +343,11 @@ with gr.Blocks() as demo:
     btn = gr.Button("Create CDE Job")
     btn.click(run_agent, [spark_submit, pyspark_file], output)
 
-demo.launch()
+
+if __name__ == "__main__":
+    demo.launch(
+        share=False,
+        show_error=True,
+        server_name="127.0.0.1",
+        server_port=int(os.getenv("CDSW_APP_PORT")),
+    )
