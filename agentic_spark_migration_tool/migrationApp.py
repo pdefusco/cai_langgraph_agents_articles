@@ -1,13 +1,10 @@
 import os
 import shutil
 from typing import Dict, Any, List
-
 import gradio as gr
 from pydantic import BaseModel, ValidationError
-
 from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI
-
 import chromadb
 from chromadb.config import Settings
 from cdepy import (
@@ -66,6 +63,12 @@ llm = ChatOpenAI(
 )
 
 # -------------------------------------------------------------------
+# Structured LLM for CDE Specs
+# -------------------------------------------------------------------
+
+structured_cde_llm = llm.with_structured_output(GeneratedCdeSpecs)
+
+# -------------------------------------------------------------------
 # Chroma (existing collection)
 # -------------------------------------------------------------------
 
@@ -119,6 +122,10 @@ class AgentState(BaseModel):
 
     errors: List[str] = []
 
+class GeneratedCdeSpecs(BaseModel):
+    cde_files_resource: CdeFilesResourceSpec
+    cde_spark_job: CdeSparkJobSpec
+
 
 # -------------------------------------------------------------------
 # LangGraph Nodes
@@ -127,21 +134,20 @@ class AgentState(BaseModel):
 def parse_spark_submit(state: AgentState) -> AgentState:
     prompt = f"""
     Extract parameters from this spark-submit command.
-
-    Return JSON with:
-    - executor_memory
-    - executor_cores
-    - num_executors
-    - spark_conf
-    - args
-
-    Do NOT infer application file.
+    Return ONLY valid JSON.
+    No explanations.
 
     Spark submit:
     {state.spark_submit}
     """
+
     response = llm.invoke(prompt).content
-    state.parsed_submit = ParsedSparkSubmit.model_validate_json(response)
+
+    json_start = response.find("{")
+    json_str = response[json_start:]
+
+    state.parsed_submit = ParsedSparkSubmit.model_validate_json(json_str)
+
     return state
 
 
@@ -157,69 +163,31 @@ def retrieve_examples(state: AgentState) -> AgentState:
 
 def generate_cde_specs(state: AgentState) -> AgentState:
 
-    json_template = """
-    {
-      "cde_files_resource": {{
-        "resource_name": "{resource_name}",
-        "local_files": ["{script_name}"]
-      }},
-      "cde_spark_job": {{
-        "job_name": "{job_name}",
-        "resource_name": "{resource_name}",
-        "application_file": "{script_name}",
-        "executorMemory": "...",
-        "executorCores": ...,
-        "numExecutors": ...,
-        "spark_conf": {{}},
-        "args": []
-      }}
-    }
-    """
-
     prompt = f"""
     You are a Python coding agent tasked with creating Cloudera Data Engineering (CDE) Spark jobs
-    using the cdepy library. You will be given retrieved documents from a vector database.
-    These documents are canonical examples of spark-submit commands mapped to CDE job resources,
-    job definitions, and cdepy execution sequences.
+    using the cdepy library.
 
-    Your job is to:
+    Follow retrieved examples exactly.
+    Map --conf flags only to spark_conf.
+    Do not modify job_name or resource_name.
+    Do not hallucinate values.
 
-    1. Follow the retrieved examples exactly for structure and ordering.
-    2. Ensure all resource → upload → job creation steps are preserved.
-    3. Map --conf flags from the spark-submit input only to the sparkConf dictionary in cdepy.
-    4. Use cdepy.CdeFilesResource and cdepy.CdeSparkJob methods as in the examples; do not invent new methods.
-    5. Include a TODO comment if any required information is missing from the input.
-    6. Keep the output executable and deterministic-friendly; do not hallucinate filenames, resources, or configs.
-
-    The job_name and resource_name are already provided.
-    You MUST use them exactly as given. Do NOT modify them.
+    job_name: {state.job_name}
+    resource_name: {state.resource_name}
+    application_file: {state.script_name}
 
     Retrieved examples:
     {state.rag_examples}
 
     Parsed spark-submit:
     {state.parsed_submit.model_dump()}
-
-    Uploaded PySpark script:
-    {state.script_name}
-    Return JSON only in the following format:
-    {json_template.format(
-        resource_name=state.resource_name,
-        script_name=state.script_name,
-        job_name=state.job_name
-    )}
     """
 
-    response = llm.invoke(prompt).content
-    import json
-    data = json.loads(response)
+    result: GeneratedCdeSpecs = structured_cde_llm.invoke(prompt)
 
-    state.resource_spec = CdeFilesResourceSpec(
-        **data["cde_files_resource"]
-    )
-    state.job_spec = CdeSparkJobSpec(
-        **data["cde_spark_job"]
-    )
+    state.resource_spec = result.cde_files_resource
+    state.job_spec = result.cde_spark_job
+
     return state
 
 
