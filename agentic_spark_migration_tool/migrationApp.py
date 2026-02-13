@@ -67,9 +67,7 @@ llm = ChatOpenAI(
 # Chroma (existing collection)
 # -------------------------------------------------------------------
 
-chroma_client = chromadb.Client(
-    Settings(persist_directory=CHROMA_DIR)
-)
+chroma_client = chromadb.PersistentClient(path=CHROMA_DIR)
 
 spark_submit_collection = chroma_client.get_collection(
     COLLECTION_NAME

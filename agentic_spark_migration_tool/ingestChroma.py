@@ -33,11 +33,7 @@ COLLECTION_NAME = "spark_submit_cde_mappings"
 # -------------------------
 # 3️⃣ Initialize Chroma client
 # -------------------------
-client = chromadb.Client(
-    Settings(
-        persist_directory=CHROMA_DIR
-    )
-)
+client = chromadb.PersistentClient(path=CHROMA_DIR)
 
 collection = client.get_or_create_collection(
     name=COLLECTION_NAME
