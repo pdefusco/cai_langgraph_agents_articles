@@ -62,22 +62,28 @@ def get_passage_embedding(text: str):
 # 5️⃣ Chunking helper
 # -------------------------
 def chunk_text(text: str, max_len: int = 400):
-    """
-    Chunk text conservatively to preserve semantic structure.
-    """
     lines = text.split("\n")
     chunks, current = [], []
 
     for line in lines:
+        if not line.strip():
+            continue  # skip blank lines
+
         current.append(line)
+
         if sum(len(l) for l in current) >= max_len:
-            chunks.append("\n".join(current))
+            chunk = "\n".join(current).strip()
+            if chunk:
+                chunks.append(chunk)
             current = []
 
     if current:
-        chunks.append("\n".join(current))
+        chunk = "\n".join(current).strip()
+        if chunk:
+            chunks.append(chunk)
 
     return chunks
+
 
 # -------------------------
 # 6️⃣ Load mapping document
