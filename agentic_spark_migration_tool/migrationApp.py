@@ -120,11 +120,21 @@ class GeneratedCdeSpecs(BaseModel):
     cde_files_resource: CdeFilesResourceSpec
     cde_spark_job: CdeSparkJobSpec
 
+class ParsedSparkSubmitOutput(BaseModel):
+    executor_memory: str | None
+    executor_cores: int | None
+    num_executors: int | None
+    spark_conf: Dict[str, str]
+    args: List[str]
+
+
 # -------------------------------------------------------------------
-# Structured LLM for CDE Specs
+# Structured LLM for CDE Specs & Parsed Spark Submit
 # -------------------------------------------------------------------
 
 structured_cde_llm = llm.with_structured_output(GeneratedCdeSpecs)
+
+structured_parse_llm = llm.with_structured_output(ParsedSparkSubmitOutput)
 
 
 # -------------------------------------------------------------------
@@ -134,21 +144,24 @@ structured_cde_llm = llm.with_structured_output(GeneratedCdeSpecs)
 def parse_spark_submit(state: AgentState) -> AgentState:
     prompt = f"""
     Extract parameters from this spark-submit command.
-    Return ONLY valid JSON.
-    No explanations.
+    Return JSON only, no explanations.
 
     Spark submit:
     {state.spark_submit}
     """
 
-    response = llm.invoke(prompt).content
+    result: ParsedSparkSubmitOutput = structured_parse_llm.invoke(prompt)
 
-    json_start = response.find("{")
-    json_str = response[json_start:]
-
-    state.parsed_submit = ParsedSparkSubmit.model_validate_json(json_str)
+    state.parsed_submit = ParsedSparkSubmit(
+        executor_memory=result.executor_memory,
+        executor_cores=result.executor_cores,
+        num_executors=result.num_executors,
+        spark_conf=result.spark_conf,
+        args=result.args
+    )
 
     return state
+
 
 
 def retrieve_examples(state: AgentState) -> AgentState:
