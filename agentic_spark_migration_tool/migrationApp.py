@@ -10,10 +10,8 @@ from langchain_openai import ChatOpenAI
 
 import chromadb
 from chromadb.config import Settings
-
-# ---- CDE imports ----
 from cdepy import cdejob, cderesource, cdemanager
-# from cdepy.connection import CdeConnection   # assumed existing
+from cdepy.connection import CdeConnection
 
 # -------------------------------------------------------------------
 # Configuration
@@ -22,18 +20,44 @@ from cdepy import cdejob, cderesource, cdemanager
 SCRIPTS_DIR = "scripts"
 os.makedirs(SCRIPTS_DIR, exist_ok=True)
 
-LLM_MODEL = "gpt-4o-mini"
-CHROMA_DIR = "/home/cdsw/chroma"
-CHROMA_COLLECTION = "spark_submit_to_cde"
+JOBS_API_URL = os.environ["JOBS_API_URL"]
+WORKLOAD_USER = os.environ["WORKLOAD_USER"]
+WORKLOAD_PASSWORD = os.environ["WORKLOAD_PASSWORD"]
 
-# Assume valid connection already exists
-myCdeConnection = None  # <-- replace
+JOB_NAME = os.environ["JOB_NAME"]
+RESOURCE_NAME = os.environ["RESOURCE_NAME"]
+APPLICATION_FILE_NAME = os.environ["APPLICATION_FILE_NAME"]
+
+LLM_MODEL_ID = os.environ["LLM_MODEL_ID"]
+LLM_ENDPOINT_BASE_URL = os.environ["LLM_ENDPOINT_BASE_URL"]
+LLM_CDP_TOKEN = os.environ["LLM_CDP_TOKEN"]
+
+CHROMA_DIR = "/home/cdsw/chroma"
+COLLECTION_NAME = "spark_submit_cde_mappings"
+
+CDE_CONNECTION = None
+CDE_MANAGER = None
+
+def init_cde():
+    global CDE_CONNECTION, CDE_MANAGER
+    CDE_CONNECTION = cdeconnection.CdeConnection(
+        JOBS_API_URL,
+        WORKLOAD_USER,
+        WORKLOAD_PASSWORD,
+    )
+    CDE_CONNECTION.setToken()
+    CDE_MANAGER = cdemanager.CdeClusterManager(CDE_CONNECTION)
 
 # -------------------------------------------------------------------
 # LLM
 # -------------------------------------------------------------------
 
-llm = ChatOpenAI(model=LLM_MODEL, temperature=0)
+llm = ChatOpenAI(
+    model=LLM_MODEL_ID,
+    base_url=LLM_ENDPOINT_BASE_URL,
+    api_key=LLM_CDP_TOKEN,
+    temperature=0.2,
+)
 
 # -------------------------------------------------------------------
 # Chroma (existing collection)
@@ -44,7 +68,7 @@ chroma_client = chromadb.Client(
 )
 
 spark_submit_collection = chroma_client.get_collection(
-    CHROMA_COLLECTION
+    COLLECTION_NAME
 )
 
 # -------------------------------------------------------------------
@@ -80,6 +104,9 @@ class AgentState(BaseModel):
     script_name: str
     local_script_path: str
 
+    job_name: str
+    resource_name: str
+
     parsed_submit: ParsedSparkSubmit | None = None
     rag_examples: List[str] = []
 
@@ -87,6 +114,7 @@ class AgentState(BaseModel):
     job_spec: CdeSparkJobSpec | None = None
 
     errors: List[str] = []
+
 
 # -------------------------------------------------------------------
 # LangGraph Nodes
@@ -139,6 +167,9 @@ Your job is to:
 5. Include a TODO comment if any required information is missing from the input.
 6. Keep the output executable and deterministic-friendly; do not hallucinate filenames, resources, or configs.
 
+The job_name and resource_name are already provided.
+You MUST use them exactly as given. Do NOT modify them.
+
 Retrieved examples:
 {state.rag_examples}
 
@@ -149,22 +180,23 @@ Uploaded PySpark script:
 {state.script_name}
 
 Return JSON only in the following format:
-{{
-  "cde_files_resource": {{
-    "resource_name": "...",
+{
+  "cde_files_resource": {
+    "resource_name": "{state.resource_name}",
     "local_files": ["{state.script_name}"]
-  }},
-  "cde_spark_job": {{
-    "job_name": "...",
-    "resource_name": "...",
+  },
+  "cde_spark_job": {
+    "job_name": "{state.job_name}",
+    "resource_name": "{state.resource_name}",
     "application_file": "{state.script_name}",
     "executorMemory": "...",
     "executorCores": ...,
     "numExecutors": ...,
-    "spark_conf": {{}},
+    "spark_conf": {},
     "args": []
-  }}
-}}
+  }
+}
+
 """
     response = llm.invoke(prompt).content
     data = eval(response)  # trusted environment assumption
@@ -262,7 +294,9 @@ def run_agent(spark_submit_text, pyspark_file):
     state = AgentState(
         spark_submit=spark_submit_text,
         script_name=pyspark_file.name,
-        local_script_path=script_path
+        local_script_path=script_path,
+        job_name=JOB_NAME,
+        resource_name=RESOURCE_NAME
     )
 
     final_state = agent.invoke(state)
