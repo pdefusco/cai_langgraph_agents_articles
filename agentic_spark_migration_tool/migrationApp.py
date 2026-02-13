@@ -10,8 +10,12 @@ from langchain_openai import ChatOpenAI
 
 import chromadb
 from chromadb.config import Settings
-from cdepy import cdejob, cderesource, cdemanager
-from cdepy.connection import CdeConnection
+from cdepy import (
+    cdeconnection,
+    cdemanager,
+    cdejob,
+    cderesource
+)
 
 # -------------------------------------------------------------------
 # Configuration
@@ -122,20 +126,20 @@ class AgentState(BaseModel):
 
 def parse_spark_submit(state: AgentState) -> AgentState:
     prompt = f"""
-Extract parameters from this spark-submit command.
+    Extract parameters from this spark-submit command.
 
-Return JSON with:
-- executor_memory
-- executor_cores
-- num_executors
-- spark_conf
-- args
+    Return JSON with:
+    - executor_memory
+    - executor_cores
+    - num_executors
+    - spark_conf
+    - args
 
-Do NOT infer application file.
+    Do NOT infer application file.
 
-Spark submit:
-{state.spark_submit}
-"""
+    Spark submit:
+    {state.spark_submit}
+    """
     response = llm.invoke(prompt).content
     state.parsed_submit = ParsedSparkSubmit.model_validate_json(response)
     return state
