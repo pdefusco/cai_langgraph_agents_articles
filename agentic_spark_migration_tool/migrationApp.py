@@ -152,6 +152,26 @@ def retrieve_examples(state: AgentState) -> AgentState:
 
 
 def generate_cde_specs(state: AgentState) -> AgentState:
+
+    json_template = """
+    {
+      "cde_files_resource": {{
+        "resource_name": "{resource_name}",
+        "local_files": ["{script_name}"]
+      }},
+      "cde_spark_job": {{
+        "job_name": "{job_name}",
+        "resource_name": "{resource_name}",
+        "application_file": "{script_name}",
+        "executorMemory": "...",
+        "executorCores": ...,
+        "numExecutors": ...,
+        "spark_conf": {{}},
+        "args": []
+      }}
+    }
+    """
+
     prompt = f"""
     You are a Python coding agent tasked with creating Cloudera Data Engineering (CDE) Spark jobs
     using the cdepy library. You will be given retrieved documents from a vector database.
@@ -178,27 +198,17 @@ def generate_cde_specs(state: AgentState) -> AgentState:
 
     Uploaded PySpark script:
     {state.script_name}
-
     Return JSON only in the following format:
-    {
-      "cde_files_resource": {
-        "resource_name": "{state.resource_name}",
-        "local_files": ["{state.script_name}"]
-      },
-      "cde_spark_job": {
-        "job_name": "{state.job_name}",
-        "resource_name": "{state.resource_name}",
-        "application_file": "{state.script_name}",
-        "executorMemory": "...",
-        "executorCores": ...,
-        "numExecutors": ...,
-        "spark_conf": {{}},
-        "args": []
-      }
-    }
+    {json_template.format(
+        resource_name=state.resource_name,
+        script_name=state.script_name,
+        job_name=state.job_name
+    )}
     """
+
     response = llm.invoke(prompt).content
-    data = eval(response)  # trusted environment assumption
+    import json
+    data = json.loads(response)
 
     state.resource_spec = CdeFilesResourceSpec(
         **data["cde_files_resource"]
