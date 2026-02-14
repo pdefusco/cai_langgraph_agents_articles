@@ -47,10 +47,6 @@ import sys
 from pyspark.sql import SparkSession
 from pyspark.sql.types import Row, StructField, StructType, StringType, IntegerType
 
-# Setup
-arg = sys.argv[1]
-print(arg)
-
 spark = SparkSession\
     .builder\
     .appName("PythonSQL")\
