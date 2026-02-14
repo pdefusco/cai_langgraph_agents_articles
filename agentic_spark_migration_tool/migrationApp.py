@@ -313,7 +313,6 @@ agent = graph.compile()
 # -------------------------------------------------------------------
 
 def run_agent(spark_submit_text, pyspark_file):
-
     filename = os.path.basename(pyspark_file.name)
 
     state = AgentState(
@@ -324,8 +323,10 @@ def run_agent(spark_submit_text, pyspark_file):
         resource_name=RESOURCE_NAME
     )
 
+    # This should return an AgentState object
     final_state = agent.invoke(state)
 
+    # Convert to dict for Gradio
     if final_state.errors:
         return {
             "status": "error",
