@@ -281,6 +281,13 @@ def execute_cde(state: AgentState) -> AgentState:
     return state
 
 
+def ensure_agent_state(output) -> AgentState:
+    if isinstance(output, dict):
+        # Reconstruct AgentState from dict
+        return AgentState(**output)
+    return output
+
+
 # -------------------------------------------------------------------
 # LangGraph wiring
 # -------------------------------------------------------------------
@@ -323,10 +330,13 @@ def run_agent(spark_submit_text, pyspark_file):
         resource_name=RESOURCE_NAME
     )
 
-    # This should return an AgentState object
     final_state = agent.invoke(state)
+    final_state = ensure_agent_state(final_state)
 
-    # Convert to dict for Gradio
+    # Ensure final_state is always an AgentState
+    if isinstance(final_state, dict):
+        final_state = AgentState(**final_state)
+
     if final_state.errors:
         return {
             "status": "error",
@@ -338,6 +348,7 @@ def run_agent(spark_submit_text, pyspark_file):
         "resource": final_state.resource_spec.model_dump(),
         "job": final_state.job_spec.model_dump()
     }
+
 
 
 with gr.Blocks() as demo:
