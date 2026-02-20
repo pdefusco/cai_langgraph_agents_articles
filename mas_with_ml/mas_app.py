@@ -202,7 +202,7 @@ marketing_chain = marketing_prompt | llm
 
 FEATURE_ORDER = [
     "age",
-    "credit_card_balance"
+    "credit_card_balance",
     "bank_account_balance",
     "mortgage_balance",
     "sec_bank_account_balance",
