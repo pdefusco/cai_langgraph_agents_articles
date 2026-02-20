@@ -37,6 +37,7 @@
 # #  Author(s): Paul de Fusco
 #***************************************************************************/
 
+from open_inference.openapi.client import OpenInferenceClient, InferenceRequest
 import subprocess
 from typing import TypedDict, Optional, Dict, Any, List
 from pydantic import BaseModel, Field
