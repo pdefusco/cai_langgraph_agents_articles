@@ -40,12 +40,22 @@
 import subprocess
 import json
 from typing import TypedDict, Optional
-
+from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
-from pydantic import BaseModel
+import random
+from pyspark.sql import SparkSession
 
+
+LLM_MODEL_ID = os.environ["LLM_MODEL_ID"]
+LLM_ENDPOINT_BASE_URL = os.environ["LLM_ENDPOINT_BASE_URL"]
+LLM_CDP_TOKEN = os.environ["LLM_CDP_TOKEN"]
+
+CLF_MODEL_ID = os.environ["CLF_MODEL_ID"]
+CLF_ENDPOINT_BASE_URL = os.environ["CLF_ENDPOINT_BASE_URL"]
+CLF_CDP_TOKEN = os.environ["CLF_CDP_TOKEN"]
+CLF_MODEL_NAME = os.environ["CLF_MODEL_NAME"]
 
 # ----------------------------
 # State Definition
@@ -54,7 +64,7 @@ from pydantic import BaseModel
 class GraphState(TypedDict):
     user_input: str
     extracted_features: Optional[dict]
-    classifier_result: Optional[int]
+    classifier_result: Optional[float]
     final_response: Optional[str]
 
 
@@ -63,24 +73,145 @@ class GraphState(TypedDict):
 # ----------------------------
 
 class Features(BaseModel):
-    age: int
-    gender: str
+    age: float = Field(default=0)
+    credit_card_balance: float = Field(default=0)
+    bank_account_balance: float = Field(default=0)
+    mortgage_balance: float = Field(default=0)
+    sec_bank_account_balance: float = Field(default=0)
+    savings_account_balance: float = Field(default=0)
+    sec_savings_account_balance: float = Field(default=0)
+    total_est_nworth: float = Field(default=0)
+    primary_loan_balance: float = Field(default=0)
+    secondary_loan_balance: float = Field(default=0)
+    uni_loan_balance: float = Field(default=0)
+    longitude: float = Field(default=0)
+    latitude: float = Field(default=0)
+    transaction_amount: float = Field(default=0)
 
 
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+llm = ChatOpenAI(
+    model=LLM_MODEL_ID,
+    base_url=LLM_ENDPOINT_BASE_URL,
+    api_key=LLM_CDP_TOKEN,
+    temperature=0.2,
+)
 
 feature_prompt = ChatPromptTemplate.from_messages([
-    ("system", "Extract structured features (age and gender) from the user message."),
+    (
+        "system",
+        """
+        You are a feature extraction engine.
+
+        Extract the following numeric features from the user message:
+
+        - age
+        - credit_card_balance
+        - bank_account_balance
+        - mortgage_balance
+        - sec_bank_account_balance
+        - savings_account_balance
+        - sec_savings_account_balance
+        - total_est_nworth
+        - primary_loan_balance
+        - secondary_loan_balance
+        - uni_loan_balance
+        - longitude
+        - latitude
+        - transaction_amount
+
+        IMPORTANT:
+        - If a value is NOT mentioned, return 0.
+        - Only return numeric values.
+        - Do NOT infer values unless explicitly stated.
+        """
+    ),
     ("human", "{input}")
 ])
 
 feature_chain = feature_prompt | llm.with_structured_output(Features)
 
+report_prompt = ChatPromptTemplate.from_messages([
+    (
+        "system",
+        """
+        You are a financial risk analysis assistant.
+
+        Generate a concise transaction report based on the structured attributes provided.
+
+        The report should include:
+        - Customer profile summary
+        - Transaction details
+        - Geographic indicators (if available)
+        - Overall fraud risk probability
+        - Brief risk interpretation
+
+        Keep it professional and under 200 words.
+        """
+            ),
+            (
+                "human",
+                """
+        Transaction Features:
+        {features}
+
+        Fraud Probability: {probability}
+        """
+    )
+])
+
+report_chain = report_prompt | llm
+
+marketing_prompt = ChatPromptTemplate.from_messages([
+    (
+        "system",
+        """
+        You are a banking marketing copywriter.
+
+        Generate a realistic promotional credit card offer email.
+
+        Rules:
+        - Use professional but engaging tone.
+        - Tailor the offer based on the customer's risk tier.
+        - LOW risk → premium rewards, travel perks, higher credit limit.
+        - MEDIUM risk → balanced cashback offer.
+        - HIGH risk → credit-building card with monitoring tools.
+        - Keep under 250 words.
+        - Output a full email including subject line.
+        """
+            ),
+            (
+                "human",
+                """
+        Customer Profile:
+        - Full Name: {full_name}
+        - Email: {email}
+        - City: {city}
+        - State: {state}
+        - Company: {company}
+        - Job Title: {job_title}
+        - Risk Tier: {risk_tier}
+
+        Recent Fraud Score: {probability}
+
+        Generate the email.
+        """
+    )
+])
+
+marketing_chain = marketing_prompt | llm
 
 def feature_extraction_node(state: GraphState):
     result = feature_chain.invoke({"input": state["user_input"]})
+
+    features_dict = result.dict()
+
+    # Hard guarantee no missing values
+    for field in Features.model_fields.keys():
+        if features_dict.get(field) is None:
+            features_dict[field] = 0
+
     return {
-        "extracted_features": result.dict()
+        "extracted_features": features_dict
     }
 
 
@@ -88,33 +219,59 @@ def feature_extraction_node(state: GraphState):
 # Classifier Agent (Cloudera AI)
 # ----------------------------
 
-CLOUDERA_ENDPOINT = "https://your-cloudera-endpoint/model/predict"
-CLOUDERA_TOKEN = "your_token"
-
-
 def classifier_node(state: GraphState):
     features = state["extracted_features"]
 
-    payload = json.dumps(features)
+    headers = {
+	'Authorization': 'Bearer ' + CLF_CDP_TOKEN,
+	'Content-Type': 'application/json'
+    }
 
-    curl_command = [
-        "curl",
-        "-X", "POST",
-        CLOUDERA_ENDPOINT,
-        "-H", f"Authorization: Bearer {CLOUDERA_TOKEN}",
-        "-H", "Content-Type: application/json",
-        "-d", payload
-    ]
+    httpx_client = httpx.Client(headers=headers)
+    client = OpenInferenceClient(base_url=CLF_ENDPOINT_BASE_URL, httpx_client=httpx_client)
 
-    result = subprocess.run(curl_command, capture_output=True, text=True)
+    # Check that the server is live, and it has the model loaded
+    client.check_server_readiness()
+    metadata = client.read_model_metadata(CLF_MODEL_NAME)
+    metadata_str = json.dumps(json.loads(metadata.json()), indent=2)
+    print(metadata_str)
 
-    response_json = json.loads(result.stdout)
+    import time
+
+    ordered_values = [float(features[f]) for f in FEATURE_ORDER]
+    payload = {
+        "parameters": {
+            "content_type": "pd"
+        },
+        "inputs": [
+            {
+                "name": "input",
+                "datatype": "FP32",
+                "shape": [1, 14],
+                "data": [ordered_values]
+            }
+        ]
+    }
+    start = time.time()
+    pred = client.model_infer(
+        CLF_MODEL_ID,
+        request=InferenceRequest(
+            inputs=payload["inputs"]
+        ),
+    )
+
+    end = time.time()
+
+    resp_json = json.loads(pred.json())
+    print(resp_json)
+    print(f"latency={end-start}")
 
     # assuming response like: {"prediction": 1}
-    prediction = response_json["prediction"]
+    fraudProba = resp_json["outputs"][0]["data"][1]
+    print(f"There is a {fraudProba} probability that the credit card transaction is fraudulent")
 
     return {
-        "classifier_result": prediction
+        "classifier_result": fraudProba
     }
 
 
@@ -123,14 +280,99 @@ def classifier_node(state: GraphState):
 # ----------------------------
 
 def action_positive_node(state: GraphState):
+
+    import random
+
+    features = state["extracted_features"]
+    probability = state["classifier_result"]
+
+    # -------------------------------------------
+    # 1️⃣ Assign Random Demo Customer ID
+    # -------------------------------------------
+    random_customer_id = random.randint(1, 9999)
+    print(f"\nAssigned Demo Customer ID: {random_customer_id}\n")
+
+    # -------------------------------------------
+    # 2️⃣ Query Spark for PII
+    # -------------------------------------------
+    query = f"""
+        SELECT *
+        FROM customers
+        WHERE customer_id = {random_customer_id}
+        LIMIT 1
+    """
+
+    customer_df = spark.sql(query)
+    rows = customer_df.collect()
+
+    if not rows:
+        return {"final_response": "Customer not found."}
+
+    customer = rows[0].asDict()
+
+    # -------------------------------------------
+    # 3️⃣ Call LLM to Generate Offer
+    # -------------------------------------------
+    response = marketing_chain.invoke({
+        "full_name": customer["full_name"],
+        "email": customer["email"],
+        "city": customer["city"],
+        "state": customer["state"],
+        "company": customer["company"],
+        "job_title": customer["job_title"],
+        "risk_tier": customer["risk_tier"],
+        "probability": f"{probability:.2%}"
+    })
+
+    email_text = response.content
+
+    print("\n===== GENERATED MARKETING EMAIL =====\n")
+    print(email_text)
+    print("\n=====================================\n")
+
     return {
-        "final_response": "Classifier returned 1 → Taking Action A (e.g., offer premium service)."
+        "final_response": email_text
     }
 
 
 def action_negative_node(state: GraphState):
+    features = state["extracted_features"]
+    probability = state["classifier_result"]
+
+    transaction_amount = features.get("transaction_amount", 0)
+    latitude = features.get("latitude", 0)
+    longitude = features.get("longitude", 0)
+
+    email_message = f"""
+    ===== FRAUD ALERT NOTIFICATION =====
+
+    To: customer@email.com
+    Subject: Urgent: Suspicious Credit Card Transaction Detected
+
+    Dear Customer,
+
+    We detected a potentially fraudulent credit card transaction.
+
+    Transaction Details:
+    - Amount: ${transaction_amount}
+    - Location (lat/long): ({latitude}, {longitude})
+    - Estimated Fraud Probability: {probability:.2%}
+
+    For your protection, this transaction has been temporarily flagged.
+
+    If this was you, please confirm via your banking app.
+    If not, contact our fraud department immediately.
+
+    Sincerely,
+    Fraud Prevention Team
+
+    =====================================
+    """
+
+    print(email_message)
+
     return {
-        "final_response": "Classifier returned 0 → Taking Action B (e.g., standard workflow)."
+        "final_response": "Fraud alert email notification generated."
     }
 
 
@@ -139,9 +381,15 @@ def action_negative_node(state: GraphState):
 # ----------------------------
 
 def router(state: GraphState):
-    if state["classifier_result"] == 1:
+    probability = float(state["classifier_result"])
+
+    print(f"Routing decision — fraud probability: {probability}")
+
+    if probability < 0.5:
+        print("→ Routing to action_positive")
         return "action_positive"
     else:
+        print("→ Routing to action_negative")
         return "action_negative"
 
 
