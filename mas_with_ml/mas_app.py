@@ -56,7 +56,6 @@ LLM_CDP_TOKEN = os.environ["LLM_CDP_TOKEN"]
 CLF_MODEL_ID = os.environ["CLF_MODEL_ID"]
 CLF_ENDPOINT_BASE_URL = os.environ["CLF_ENDPOINT_BASE_URL"]
 CLF_CDP_TOKEN = os.environ["CLF_CDP_TOKEN"]
-CLF_MODEL_NAME = os.environ["CLF_MODEL_NAME"]
 
 # ----------------------------
 # State Definition
@@ -201,6 +200,23 @@ marketing_prompt = ChatPromptTemplate.from_messages([
 
 marketing_chain = marketing_prompt | llm
 
+FEATURE_ORDER = [
+    "age",
+    "credit_card_balance"
+    "bank_account_balance",
+    "mortgage_balance",
+    "sec_bank_account_balance",
+    "savings_account_balance",
+    "sec_savings_account_balance",
+    "total_est_nworth",
+    "primary_loan_balance",
+    "secondary_loan_balance",
+    "uni_loan_balance",
+    "longitude",
+    "latitude",
+    "transaction_amount"
+]
+
 def feature_extraction_node(state: GraphState):
     result = feature_chain.invoke({"input": state["user_input"]})
 
@@ -233,7 +249,7 @@ def classifier_node(state: GraphState):
 
     # Check that the server is live, and it has the model loaded
     client.check_server_readiness()
-    metadata = client.read_model_metadata(CLF_MODEL_NAME)
+    metadata = client.read_model_metadata(CLF_MODEL_ID)
     metadata_str = json.dumps(json.loads(metadata.json()), indent=2)
     print(metadata_str)
 
