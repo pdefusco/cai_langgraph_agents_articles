@@ -287,7 +287,7 @@ def classifier_node(state: GraphState):
     print(f"latency={end-start}")
 
     # assuming response like: {"prediction": 1}
-    fraudProba = resp_json["outputs"][0]["data"][1]
+    fraudProba = resp_json["outputs"][1]["data"][1]
     print(f"There is a {fraudProba} probability that the credit card transaction is fraudulent")
 
     return {
