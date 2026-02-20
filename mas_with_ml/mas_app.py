@@ -256,6 +256,9 @@ def classifier_node(state: GraphState):
     import time
 
     ordered_values = [float(features[f]) for f in FEATURE_ORDER]
+    print("ordered values sanity check:")
+    print(ordered_values)
+
     payload = {
         "parameters": {
             "content_type": "pd"
