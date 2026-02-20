@@ -140,11 +140,11 @@ def dataGen(self, spark, shuffle_partitions_requested=2, partitions_requested=2,
         """
 
         try:
-            df.writeTo("{0}.PII_{1}".format(self.dbname, self.username))\
+            df.writeTo("{0}.customers".format(self.dbname))\
               .using("iceberg").tableProperty("write.format.default", "parquet").append()
 
         except:
-            df.writeTo("{0}.PII_{1}".format(self.dbname, self.username))\
+            df.writeTo("{0}.customers".format(self.dbname))\
                 .using("iceberg").tableProperty("write.format.default", "parquet").createOrReplace()
 
 
