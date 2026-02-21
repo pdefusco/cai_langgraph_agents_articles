@@ -45,9 +45,14 @@ from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 import random, os, json, time
-from pyspark.sql import SparkSession
 import httpx
 from urllib.parse import urlparse, urlunparse
+from pyspark.sql import SparkSession
+
+spark = SparkSession.builder \
+    .appName("CreditCardClassifierApp") \
+    .getOrCreate()
+
 
 LLM_MODEL_ID = os.environ["LLM_MODEL_ID"]
 LLM_ENDPOINT_BASE_URL = os.environ["LLM_ENDPOINT_BASE_URL"]
