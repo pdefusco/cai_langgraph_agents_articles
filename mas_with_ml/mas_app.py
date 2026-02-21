@@ -332,12 +332,12 @@ def action_positive_node(state: GraphState):
     """
 
     customer_df = spark.sql(query)
-    rows = customer_df.collect()
+    customer_row = customer_df.first()  # instead of collect()
 
-    if not rows:
+    if not customer_row:
         return {"final_response": "Customer not found."}
 
-    customer = rows[0].asDict()
+    customer = customer_row.asDict()
 
     # -------------------------------------------
     # 3️⃣ Call LLM to Generate Offer
