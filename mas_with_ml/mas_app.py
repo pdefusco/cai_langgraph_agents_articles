@@ -51,6 +51,8 @@ from pyspark.sql import SparkSession
 
 spark = SparkSession.builder \
     .appName("CreditCardClassifierApp") \
+    .config("spark.executor.memory", "4g") \
+    .config("spark.driver.memory", "4g") \
     .getOrCreate()
 
 USERNAME = os.environ["PROJECT_OWNER"]
