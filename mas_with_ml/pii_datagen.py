@@ -144,7 +144,7 @@ class BankDataGen:
                 .saveAsTable("{0}.customers".format(self.dbname))
 
         except Exception:
-            taskMetricsDf.write \
+            df.write \
                 .mode("append") \
                 .format("parquet") \
                 .saveAsTable("{0}.customers".format(self.dbname))
