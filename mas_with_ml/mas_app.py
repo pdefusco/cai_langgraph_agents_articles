@@ -448,8 +448,8 @@ graph = builder.compile()
 import streamlit as st
 
 def run_streamlit_app(graph):
-    st.set_page_config(page_title="Credit Card Transaction Classifier", layout="wide")
-    st.title("💳 Credit Card Transaction Classifier")
+    st.set_page_config(page_title="Multi-Agent System with Machine Learning", layout="wide")
+    st.title("Multi-Agent System with Machine Learning")
 
     # 1️⃣ User Input
     user_message = st.text_area(
