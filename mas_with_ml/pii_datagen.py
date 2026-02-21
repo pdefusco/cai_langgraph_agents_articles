@@ -139,12 +139,15 @@ class BankDataGen:
         """
 
         try:
-            df.writeTo("{0}.customers".format(self.dbname))\
-              .using("iceberg").tableProperty("write.format.default", "parquet").append()
+            df.write \
+                .format("parquet") \
+                .saveAsTable("{0}.customers".format(self.dbname))
 
-        except:
-            df.writeTo("{0}.customers".format(self.dbname))\
-                .using("iceberg").tableProperty("write.format.default", "parquet").createOrReplace()
+        except Exception:
+            taskMetricsDf.write \
+                .mode("append") \
+                .format("parquet") \
+                .saveAsTable("{0}.customers".format(self.dbname))
 
 
     def validateTable(self, spark):
