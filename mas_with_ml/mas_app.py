@@ -49,11 +49,14 @@ import httpx
 from urllib.parse import urlparse, urlunparse
 from pyspark.sql import SparkSession
 
-spark = SparkSession.builder \
-    .appName("CreditCardClassifierApp") \
-    .config("spark.executor.memory", "4g") \
-    .config("spark.driver.memory", "4g") \
+spark = (
+    SparkSession.builder
+    .appName("spark-performance-agent-ui")
+    .config("spark.executor.cores", 2)
+    .config("spark.execuctor.memory", "4g")
+    .config("spark.kerberos.access.hadoopFileSystems", "s3a://pdf-feb-buk-42fa3de2/")
     .getOrCreate()
+)
 
 USERNAME = os.environ["PROJECT_OWNER"]
 DBNAME = "PII_"+USERNAME
