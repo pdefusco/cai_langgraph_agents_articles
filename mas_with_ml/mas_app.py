@@ -309,39 +309,27 @@ def classifier_node(state: GraphState):
 # ----------------------------
 
 def action_positive_node(state: GraphState):
-
     import random
-
     features = state["extracted_features"]
     probability = state["classifier_result"]
 
-    # -------------------------------------------
-    # 1️⃣ Assign Random Demo Customer ID
-    # -------------------------------------------
     random_customer_id = random.randint(1, 9999)
-    print(f"\nAssigned Demo Customer ID: {random_customer_id}\n")
+    print(f"Assigned Demo Customer ID: {random_customer_id}")
 
-    # -------------------------------------------
-    # 2️⃣ Query Spark for PII
-    # -------------------------------------------
+    # Only fetch primitive columns
     query = f"""
-        SELECT *
+        SELECT customer_id, full_name, email, city, state, company, job_title, risk_tier
         FROM {DBNAME}.customers
         WHERE customer_id = {random_customer_id}
         LIMIT 1
     """
-
     customer_df = spark.sql(query)
-    customer_row = customer_df.first()  # instead of collect()
-
-    if not customer_row:
+    customer_pd = customer_df.toPandas()  # safer than first()
+    if customer_pd.empty:
         return {"final_response": "Customer not found."}
 
-    customer = customer_row.asDict()
+    customer = customer_pd.iloc[0].to_dict()
 
-    # -------------------------------------------
-    # 3️⃣ Call LLM to Generate Offer
-    # -------------------------------------------
     response = marketing_chain.invoke({
         "full_name": customer["full_name"],
         "email": customer["email"],
@@ -354,14 +342,9 @@ def action_positive_node(state: GraphState):
     })
 
     email_text = response.content
+    print("\n===== GENERATED MARKETING EMAIL =====\n", email_text)
 
-    print("\n===== GENERATED MARKETING EMAIL =====\n")
-    print(email_text)
-    print("\n=====================================\n")
-
-    return {
-        "final_response": email_text
-    }
+    return {"final_response": email_text}
 
 
 def action_negative_node(state: GraphState):
