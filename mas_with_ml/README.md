@@ -1,6 +1,6 @@
 # How to Implement a Multi-Agent System with Machine Learning in Cloudera AI using Spark, XGBoost, LangGraph, Nemotron and Cloudera AI Inference Service, across Multiple Cloud Environments
 
-![alt text](img/continuous-agent-sol-arch.png)
+![alt text](img/sol-arch.png)
 
 ## Objective
 
