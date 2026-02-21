@@ -50,19 +50,9 @@ Runtimes:
   PBJ Workbench	Python 3.10	Standard 2025.09 or more recent
 ```
 
-![alt text](img/proj-1.png)
-
-![alt text](img/proj-2.png)
-
 #### 2. Create the Project Environment Variables with Secrets
 
 Navigate to the AI Inference Service UI and open the model endpoint. Then, copy the Model ID, Endpoint URL and CDP Token to your clipboard.
-
-![alt text](img/endpoint-1.png)
-
-![alt text](img/endpoint-2.png)
-
-![alt text](img/embedding.png)
 
 In the CAI Project Settings, create the following Environment Variables using the values copied above.
 
@@ -87,15 +77,11 @@ Spark Runtime Addon: Spark 3.5.1
 Resource Profile: 2 vCPU / 8 iGB Mem / 0 GPU
 ```
 
-![alt text](img/launch-pbj.png)
-
 First, install the requirements by opening the Terminal and running this command:
 
 ```
 pip3 install -r mas_with_ml/requirements.txt
 ```
-
-![alt text](img/install-requirements.png)
 
 Open ```pii_datagen.py``` and run it without modifications. This script will create a table called "customers" in a PII database.
 
