@@ -317,7 +317,7 @@ def action_positive_node(state: GraphState):
     # -------------------------------------------
     query = f"""
         SELECT *
-        FROM customers
+        FROM default.customers
         WHERE customer_id = {random_customer_id}
         LIMIT 1
     """
@@ -442,16 +442,66 @@ builder.add_edge("action_negative", END)
 
 graph = builder.compile()
 
+# ----------------------------
+# Streamlit App
+# ----------------------------
+import streamlit as st
+
+def run_streamlit_app(graph):
+    st.set_page_config(page_title="Credit Card Transaction Classifier", layout="wide")
+    st.title("💳 Credit Card Transaction Classifier")
+
+    # 1️⃣ User Input
+    user_message = st.text_area(
+        "Enter user message / transaction description:",
+        value="Hi, I am a 45 year old male interested in financial planning.",
+        height=150
+    )
+
+    if st.button("Run Classifier"):
+
+        with st.spinner("Processing transaction..."):
+            result = graph.invoke({"user_input": user_message})
+
+        # 2️⃣ Extract outputs
+        fraud_probability = result.get("classifier_result", None)
+        final_response = result.get("final_response", "")
+        extracted_features = result.get("extracted_features", {})
+
+        # Determine which action was chosen based on probability
+        if fraud_probability is not None:
+            if fraud_probability < 0.5:
+                action_chosen = "Positive (Marketing Offer)"
+                action_color = "green"
+            else:
+                action_chosen = "Negative (Fraud Alert)"
+                action_color = "red"
+
+            # 3️⃣ Display Classifier Info
+            st.subheader("Classifier Output")
+            col1, col2 = st.columns([1, 3])
+
+            with col1:
+                st.metric("Fraud Probability", f"{fraud_probability:.2%}")
+                st.progress(fraud_probability)
+
+            with col2:
+                st.markdown(
+                    f"<div style='padding:10px; border-radius:5px; background-color:{action_color}; color:white; font-weight:bold; text-align:center'>{action_chosen}</div>",
+                    unsafe_allow_html=True
+                )
+
+            # 4️⃣ Display Action Output
+            st.subheader("Action Output")
+            st.markdown(final_response.replace("\n", "  \n"))
+
+            # 5️⃣ Display Extracted Features
+            st.subheader("Extracted Features")
+            st.json(extracted_features)
+
 
 # ----------------------------
-# Run Example
+# Main CLI-style Example
 # ----------------------------
-
 if __name__ == "__main__":
-    user_message = "Hi, I am a 45 year old male interested in financial planning."
-
-    result = graph.invoke({
-        "user_input": user_message
-    })
-
-    print(result["final_response"])
+    run_streamlit_app(graph)
