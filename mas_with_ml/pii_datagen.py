@@ -64,15 +64,14 @@ class BankDataGen:
 
         FakerTextUS = FakerTextFactory(
             locale=['en_US'],
-            providers=[bank, credit_card, currency, person, address, ssn, phone_number, company, internet]
+            providers=[bank, credit_card, currency]
         )
 
         spark.conf.set("spark.sql.shuffle.partitions", shuffle_partitions_requested)
 
         fakerDataspec = (
             DataGenerator(spark, rows=data_rows, partitions=partitions_requested)
-                .withIdOutput("customer_id")
-                .withFakerTextFactory(FakerTextUS)
+                .withColumn("customer_id", "long", minValue=1, step=1)
                 .withColumn("first_name", "string", text=fakerText("first_name"))
                 .withColumn("last_name", "string", text=fakerText("last_name"))
                 .withColumn("full_name", "string", text=fakerText("name"))
