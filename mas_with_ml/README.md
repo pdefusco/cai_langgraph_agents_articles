@@ -104,7 +104,7 @@ Resource Profile: 4 vCPU / 16 GiB / 0 GPU
 
 ![alt text](img/app-1.png)
 
-#### Anomalous Request Test
+#### Anomalous Request
 
 Open the UI and run the first request using the default question populated in the chat: "Hi, I'm a 45 year old male interested in financial planning".
 
@@ -116,7 +116,7 @@ The request is found to be anomalous. Open the backend application logs and noti
 
 ![alt text](img/error-notification.png)
 
-#### Approved Request Test
+#### Non-Anomalous Request
 
 Using the app UI, input a new request with the following payload:
 
