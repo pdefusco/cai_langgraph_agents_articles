@@ -60,41 +60,41 @@ class BankDataGen:
         self.connectionName = connectionName
 
 
-def dataGen(self, spark, shuffle_partitions_requested=2, partitions_requested=2, data_rows=10000):
+    def dataGen(self, spark, shuffle_partitions_requested=2, partitions_requested=2, data_rows=10000):
 
-    FakerTextUS = FakerTextFactory(
-        locale=['en_US'],
-        providers=[bank, credit_card, currency, person, address, ssn, phone_number, company, internet]
-    )
+        FakerTextUS = FakerTextFactory(
+            locale=['en_US'],
+            providers=[bank, credit_card, currency, person, address, ssn, phone_number, company, internet]
+        )
 
-    spark.conf.set("spark.sql.shuffle.partitions", shuffle_partitions_requested)
+        spark.conf.set("spark.sql.shuffle.partitions", shuffle_partitions_requested)
 
-    fakerDataspec = (
-        DataGenerator(spark, rows=data_rows, partitions=partitions_requested)
-            .withIdOutput("customer_id")
-            .withFakerTextFactory(FakerTextUS)
-            .withColumn("first_name", "string", text=fakerText("first_name"))
-            .withColumn("last_name", "string", text=fakerText("last_name"))
-            .withColumn("full_name", "string", text=fakerText("name"))
-            .withColumn("email", "string", text=fakerText("email"))
-            .withColumn("phone_number", "string", text=fakerText("phone_number"))
-            .withColumn("ssn", "string", text=fakerText("ssn"))
-            .withColumn("street_address", "string", text=fakerText("street_address"))
-            .withColumn("city", "string", text=fakerText("city"))
-            .withColumn("state", "string", text=fakerText("state_abbr"))
-            .withColumn("zip_code", "string", text=fakerText("postcode"))
-            .withColumn("country", "string", text=fakerText("country"))
-            .withColumn("company", "string", text=fakerText("company"))
-            .withColumn("job_title", "string", text=fakerText("job"))
-            .withColumn("risk_tier", "string",
-                values=["LOW", "MEDIUM", "HIGH"],
-                weights=[70, 20, 10],
-                random=True)
-                )
+        fakerDataspec = (
+            DataGenerator(spark, rows=data_rows, partitions=partitions_requested)
+                .withIdOutput("customer_id")
+                .withFakerTextFactory(FakerTextUS)
+                .withColumn("first_name", "string", text=fakerText("first_name"))
+                .withColumn("last_name", "string", text=fakerText("last_name"))
+                .withColumn("full_name", "string", text=fakerText("name"))
+                .withColumn("email", "string", text=fakerText("email"))
+                .withColumn("phone_number", "string", text=fakerText("phone_number"))
+                .withColumn("ssn", "string", text=fakerText("ssn"))
+                .withColumn("street_address", "string", text=fakerText("street_address"))
+                .withColumn("city", "string", text=fakerText("city"))
+                .withColumn("state", "string", text=fakerText("state_abbr"))
+                .withColumn("zip_code", "string", text=fakerText("postcode"))
+                .withColumn("country", "string", text=fakerText("country"))
+                .withColumn("company", "string", text=fakerText("company"))
+                .withColumn("job_title", "string", text=fakerText("job"))
+                .withColumn("risk_tier", "string",
+                    values=["LOW", "MEDIUM", "HIGH"],
+                    weights=[70, 20, 10],
+                    random=True)
+                    )
 
-    df = fakerDataspec.build()
+        df = fakerDataspec.build()
 
-    return df
+        return df
 
 
     def createSparkConnection(self):

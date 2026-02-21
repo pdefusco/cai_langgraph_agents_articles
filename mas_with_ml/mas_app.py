@@ -53,6 +53,8 @@ spark = SparkSession.builder \
     .appName("CreditCardClassifierApp") \
     .getOrCreate()
 
+USERNAME = os.environ["PROJECT_OWNER"]
+DBNAME = "PII_"+USERNAME
 
 LLM_MODEL_ID = os.environ["LLM_MODEL_ID"]
 LLM_ENDPOINT_BASE_URL = os.environ["LLM_ENDPOINT_BASE_URL"]
@@ -322,7 +324,7 @@ def action_positive_node(state: GraphState):
     # -------------------------------------------
     query = f"""
         SELECT *
-        FROM default.customers
+        FROM {DBNAME}.customers
         WHERE customer_id = {random_customer_id}
         LIMIT 1
     """
