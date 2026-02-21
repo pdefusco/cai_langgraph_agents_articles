@@ -141,13 +141,13 @@ class BankDataGen:
         try:
             df.write \
                 .format("parquet") \
-                .saveAsTable("{0}.customers".format(self.dbname))
+                .saveAsTable("{0}.customer_table".format(self.dbname))
 
         except Exception:
             df.write \
                 .mode("append") \
                 .format("parquet") \
-                .saveAsTable("{0}.customers".format(self.dbname))
+                .saveAsTable("{0}.customer_table".format(self.dbname))
 
 
     def validateTable(self, spark):

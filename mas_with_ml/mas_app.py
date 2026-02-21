@@ -322,7 +322,7 @@ def action_positive_node(state: GraphState):
     # Only fetch primitive columns
     query = f"""
         SELECT customer_id, full_name, email, city, state, company, job_title, risk_tier
-        FROM {DBNAME}.customers
+        FROM {DBNAME}.customer_table
         WHERE customer_id = {random_customer_id}
         LIMIT 1
     """
