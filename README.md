@@ -1,4 +1,4 @@
-# CAI LangGraph Articles
+# CAI LangGraph Demo Articles
 
 Collection of demos of Agentic AI using LangGraph in Cloudera AI. This page is continuously updated.
 
@@ -40,7 +40,7 @@ This example was built with Cloudera On Cloud Public Cloud and Cloudera On Prem 
 
 Instructions & Code: https://github.com/pdefusco/cai_langgraph_agents_articles/tree/main/hybrid_agents_a2a
 
-![alt text](hybrid_agents_a2a/img/a2a_sol_arch.png)
+![alt text](hybrid_agents_a2a/img/a2a-sol-arch.png)
 
 ### How to Implement a Multi-Agent System to Migrate Spark Submits to Cloudera Data Engineering with LangGraph, Nvidia Nemotron 49B, and Cloudera AI Inference Service in Cloudera AI
 
@@ -60,4 +60,4 @@ This example was built with Cloudera On Cloud Public Cloud Runtime 7.3.1, CAI Wo
 
 Instructions & Code: https://github.com/pdefusco/cai_langgraph_agents_articles/tree/main/mas_with_ml
 
-![alt text](mas_with_ml/img/sol_arch.png)
+![alt text](mas_with_ml/img/sol-arch.png)
