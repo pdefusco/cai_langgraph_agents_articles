@@ -1,5 +1,5 @@
 #****************************************************************************
-# (C) Cloudera, Inc. 2020-2022
+# (C) Cloudera, Inc. 2020-2026
 #  All rights reserved.
 #
 #  Applicable Open Source License: GNU Affero General Public License v3.0
